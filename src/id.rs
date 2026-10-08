@@ -1,6 +1,9 @@
 //! [`Id`]: a checked HyperFrames id.
 
 use std::fmt;
+use std::str::FromStr;
+
+use crate::error::CompositionError;
 
 /// The maximum id length in characters.
 pub const MAX_ID_LEN: usize = 128;
@@ -14,17 +17,24 @@ pub const MAX_ID_LEN: usize = 128;
 /// ```rust
 /// use autumn_plugin_hyperframes::Id;
 ///
-/// assert!(Id::new("card-pro").is_some());
-/// assert!(Id::new("12").is_none());
+/// assert!(Id::new("card-pro").is_ok());
+/// assert!("12".parse::<Id>().is_err());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(String);
 
 impl Id {
-    /// Checks `id`. Returns `None` when it does not match the grammar.
-    #[must_use]
-    pub fn new(id: &str) -> Option<Self> {
-        is_valid_id(id).then(|| Self(id.to_owned()))
+    /// Checks `id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CompositionError::InvalidId`] when `id` does not match the grammar.
+    pub fn new(id: &str) -> Result<Self, CompositionError> {
+        if is_valid_id(id) {
+            Ok(Self(id.to_owned()))
+        } else {
+            Err(CompositionError::InvalidId { id: id.to_owned() })
+        }
     }
 
     /// The id text.
@@ -37,6 +47,22 @@ impl Id {
 impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<&str> for Id {
+    type Error = CompositionError;
+
+    fn try_from(id: &str) -> Result<Self, Self::Error> {
+        Self::new(id)
+    }
+}
+
+impl FromStr for Id {
+    type Err = CompositionError;
+
+    fn from_str(id: &str) -> Result<Self, Self::Err> {
+        Self::new(id)
     }
 }
 
@@ -78,6 +104,11 @@ mod tests {
         assert_eq!(id.as_str(), "intro");
         assert_eq!(id.to_string(), "intro");
         assert_eq!(id.as_ref(), "intro");
-        assert!(Id::new("1").is_none());
+        assert_eq!(
+            Id::new("1"),
+            Err(CompositionError::InvalidId { id: "1".into() })
+        );
+        assert_eq!(Id::try_from("a").map(|i| i.to_string()), Ok("a".to_owned()));
+        assert!("a b".parse::<Id>().is_err());
     }
 }

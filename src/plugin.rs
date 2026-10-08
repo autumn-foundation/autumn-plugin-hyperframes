@@ -25,7 +25,7 @@ pub const PLUGIN_NAME: &str = "autumn-plugin-hyperframes";
 ///     .await;
 /// # }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 #[must_use]
 pub struct HyperframesPlugin;
 

@@ -16,7 +16,8 @@ const MIN_RATE: f64 = 0.1;
 const MAX_RATE: f64 = 5.0;
 
 /// The video file type for [`Player::video`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum VideoType {
     /// `video/mp4`.
     Mp4,
@@ -39,23 +40,25 @@ impl VideoType {
 }
 
 /// Who shows the shader transition loading UI (`shader-loading`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ShaderLoading {
     /// The composition shows it (the player default).
     Composition,
     /// The player shows it.
     Player,
     /// Nobody shows it.
-    None,
+    Hidden,
 }
 
 /// What the player does when the user prefers reduced motion (`data-hf-reduced`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum ReducedMotion {
     /// Do not autoplay and do not play in view (the default). Writes nothing.
     #[default]
     Skip,
-    /// Autoplay and play in view all the same.
+    /// Autoplay and play in view also when the user prefers reduced motion.
     Animate,
 }
 
@@ -64,7 +67,7 @@ impl ShaderLoading {
         match self {
             Self::Composition => "composition",
             Self::Player => "player",
-            Self::None => "none",
+            Self::Hidden => "none",
         }
     }
 }

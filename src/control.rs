@@ -7,7 +7,8 @@ use autumn_web::{Markup, html};
 use crate::time::seconds;
 
 /// What a [`PlayerControl`] button does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Control {
     /// Play.
     Play,

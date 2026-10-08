@@ -6,10 +6,11 @@
 /// use autumn_plugin_hyperframes::Variable;
 ///
 /// let title = Variable::string("title", "Pro").label("Title");
-/// let plan = Variable::enumeration("plan", &["pro", "team"], "pro");
+/// let plan = Variable::choice("plan", &["pro", "team"], "pro");
 /// # let _ = (title, plan);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[must_use]
 pub struct Variable {
     pub(crate) id: String,
     pub(crate) kind: VariableKind,
@@ -65,9 +66,9 @@ impl Variable {
         Self::new(id, VariableKind::Boolean(default))
     }
 
-    /// A choice from `options`. The default must be one of them.
+    /// A choice from `options` (type `enum`). The default must be one of them.
     #[must_use]
-    pub fn enumeration(id: &str, options: &[&str], default: &str) -> Self {
+    pub fn choice(id: &str, options: &[&str], default: &str) -> Self {
         Self::new(
             id,
             VariableKind::Enum {
@@ -106,6 +107,7 @@ impl Variable {
 
 /// A value for a nested composition variable (`data-variable-values`).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum VariableValue {
     /// Text, a color, a font name or a path.
     String(String),

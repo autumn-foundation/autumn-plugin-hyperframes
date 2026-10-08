@@ -85,5 +85,5 @@ pub use id::{Id, MAX_ID_LEN};
 pub use player::{Player, ReducedMotion, ShaderLoading, VideoType};
 pub use plugin::{HyperframesPlugin, PLUGIN_NAME};
 pub use script::{hyperframes_script, hyperframes_stylesheet};
-pub use time::{Offset, Start};
+pub use time::Start;
 pub use variable::{Variable, VariableValue};

@@ -19,8 +19,10 @@ pub enum CompositionError {
         id: String,
     },
     /// The width or the height is not in `1..=16384` (S3).
-    #[error("the size {width}x{height} is not in 1..=16384")]
+    #[error("the size {width}x{height} of `{owner}` is not in 1..=16384")]
     InvalidSize {
+        /// The composition or clip id.
+        owner: String,
         /// The width in pixels.
         width: u32,
         /// The height in pixels.

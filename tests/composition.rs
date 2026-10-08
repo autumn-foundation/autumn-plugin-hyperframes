@@ -169,6 +169,7 @@ fn s3_rejects_bad_sizes() {
         assert_eq!(
             errs,
             [CompositionError::InvalidSize {
+                owner: "c".into(),
                 width: w,
                 height: h
             }]
@@ -353,8 +354,8 @@ fn s9_rejects_bad_variables() {
             .variable(Variable::string("title", "x"))
             .variable(Variable::color("title", "#fff"))
             .variable(Variable::number("n", f64::NAN))
-            .variable(Variable::enumeration("e", &[], "a"))
-            .variable(Variable::enumeration("f", &["a", "b"], "c"))
+            .variable(Variable::choice("e", &[], "a"))
+            .variable(Variable::choice("f", &["a", "b"], "c"))
             .build(),
     );
     assert_eq!(
@@ -656,7 +657,7 @@ fn variables_render_every_type() {
         .variable(Variable::number("n", 2.5))
         .variable(Variable::color("c2", "#ff0000"))
         .variable(Variable::boolean("b", true))
-        .variable(Variable::enumeration("e", &["a", "b"], "b"))
+        .variable(Variable::choice("e", &["a", "b"], "b"))
         .variable(Variable::font("f", "Inter"))
         .variable(Variable::image("i", "/i.png"))
         .build()

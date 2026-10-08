@@ -11,7 +11,7 @@ use crate::clip::sealed::{AnyKind, MediaOptions};
 use crate::clip::{AnyClip, Clip, ClipKind, VideoAudio};
 use crate::error::{BuildError, CompositionError};
 use crate::id::{Id, is_valid_id};
-use crate::time::{Start, millis, seconds, start_attr};
+use crate::time::{StartKind, millis, seconds, start_attr};
 use crate::url::is_safe_url;
 use crate::variable::{Variable, VariableKind, VariableValue};
 
@@ -469,11 +469,7 @@ impl CompositionBuilder {
         if !errors.is_empty() {
             return Err(BuildError(errors));
         }
-        let Some(id) = Id::new(&self.id) else {
-            return Err(BuildError(vec![CompositionError::InvalidId {
-                id: self.id,
-            }]));
-        };
+        let id = Id::new(&self.id).map_err(|e| BuildError(vec![e]))?;
         let timing = resolve_timing(&self.clips);
         Ok(Composition {
             id,
@@ -495,6 +491,7 @@ impl CompositionBuilder {
         let in_range = |side: u32| (1..=MAX_SIZE).contains(&side);
         if !in_range(self.width) || !in_range(self.height) {
             errors.push(CompositionError::InvalidSize {
+                owner: self.id.clone(),
                 width: self.width,
                 height: self.height,
             });
@@ -581,9 +578,9 @@ impl CompositionBuilder {
         // The clip each clip starts after, if that clip exists.
         let mut next: Vec<Option<usize>> = Vec::with_capacity(self.clips.len());
         for clip in &self.clips {
-            let target = match &clip.start {
-                Start::At(_) => None,
-                Start::After {
+            let target = match &clip.start.0 {
+                StartKind::At(_) => None,
+                StartKind::After {
                     clip: reference, ..
                 } if *reference == clip.id => {
                     errors.push(CompositionError::SelfReference {
@@ -591,7 +588,7 @@ impl CompositionBuilder {
                     });
                     None
                 }
-                Start::After {
+                StartKind::After {
                     clip: reference, ..
                 } => {
                     let found = index.get(reference.as_str()).copied();
@@ -735,6 +732,7 @@ fn check_clip(clip: &AnyClip, declared: &HashSet<&str>, errors: &mut Vec<Composi
                 && !((1..=MAX_SIZE).contains(&w) && (1..=MAX_SIZE).contains(&h))
             {
                 errors.push(CompositionError::InvalidSize {
+                    owner: id.to_owned(),
                     width: w,
                     height: h,
                 });
@@ -778,9 +776,9 @@ fn resolve_timing(clips: &[AnyClip]) -> Vec<(Option<u64>, Option<u64>)> {
             if done[i] {
                 continue;
             }
-            let start = match &clip.start {
-                Start::At(at) => Some(Some(millis(*at))),
-                Start::After { clip: r, offset } => {
+            let start = match &clip.start.0 {
+                StartKind::At(at) => Some(Some(millis(*at))),
+                StartKind::After { clip: r, offset } => {
                     let r = index[r.as_str()];
                     done[r].then(|| {
                         timing[r].1.map(|end| {

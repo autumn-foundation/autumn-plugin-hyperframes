@@ -8,8 +8,8 @@ use autumn_web::Markup;
 use crate::time::Start;
 use crate::variable::VariableValue;
 
-/// Says if a video has sound. HyperFrames needs one or the other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Tells if the video has sound. HyperFrames needs this for each video.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VideoAudio {
     /// Silent footage. Writes `muted`.
     Muted,
@@ -37,6 +37,7 @@ pub enum VideoAudio {
 /// # let _ = (title, video);
 /// ```
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct Clip<K> {
     pub(crate) id: String,
     pub(crate) start: Start,
@@ -382,7 +383,7 @@ impl Clip<Nested> {
 }
 
 impl<K: sealed::HasMedia> Clip<K> {
-    /// Sets the offset into the source file (trim).
+    /// Sets the time in the source file where the clip starts (`data-media-start`).
     #[must_use]
     pub fn media_start(mut self, time: Duration) -> Self {
         self.kind.media_mut().media_start = Some(time);

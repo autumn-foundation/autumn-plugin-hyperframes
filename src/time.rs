@@ -12,76 +12,80 @@ use std::time::Duration;
 /// let overlap = Start::after("intro").minus(Duration::from_millis(500));
 /// # let _ = (at, overlap);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Start {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[must_use]
+pub struct Start(pub(crate) StartKind);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum StartKind {
     /// An absolute time from the composition start.
     At(Duration),
     /// When clip `clip` ends, moved by `offset`.
-    After {
-        /// The id of the clip in the same composition.
-        clip: String,
-        /// The time to move the start by.
-        offset: Offset,
-    },
+    After { clip: String, offset: Offset },
 }
 
-/// A signed move of a relative start.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Offset {
+impl Default for StartKind {
+    fn default() -> Self {
+        Self::At(Duration::ZERO)
+    }
+}
+
+/// A signed move of a relative start. `shift` never makes `Minus(ZERO)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Offset {
     /// Start later.
     Plus(Duration),
     /// Start earlier (overlap).
     Minus(Duration),
 }
 
-impl Default for Start {
-    fn default() -> Self {
-        Self::At(Duration::ZERO)
-    }
-}
-
 impl Start {
     /// Starts at `time` from the composition start.
-    #[must_use]
     pub const fn at(time: Duration) -> Self {
-        Self::At(time)
+        Self(StartKind::At(time))
     }
 
     /// Starts when clip `clip` ends.
-    #[must_use]
     pub fn after(clip: &str) -> Self {
-        Self::After {
+        Self(StartKind::After {
             clip: clip.to_owned(),
             offset: Offset::Plus(Duration::ZERO),
-        }
+        })
     }
 
     /// Moves the start later by `time`.
     ///
-    /// An absolute start saturates at the largest `Duration`.
-    #[must_use]
+    /// An absolute start stops at the largest `Duration`.
     pub fn plus(self, time: Duration) -> Self {
-        match self {
-            Self::At(at) => Self::At(at.saturating_add(time)),
-            Self::After { clip, offset } => Self::After {
+        Self(match self.0 {
+            StartKind::At(at) => StartKind::At(at.saturating_add(time)),
+            StartKind::After { clip, offset } => StartKind::After {
                 clip,
                 offset: offset.shift(time, true),
             },
-        }
+        })
     }
 
     /// Moves the start earlier by `time`.
     ///
     /// An absolute start stops at zero. A relative start can go before the end
     /// of its clip (overlap). The runtime clamps the result at zero.
-    #[must_use]
     pub fn minus(self, time: Duration) -> Self {
-        match self {
-            Self::At(at) => Self::At(at.saturating_sub(time)),
-            Self::After { clip, offset } => Self::After {
+        Self(match self.0 {
+            StartKind::At(at) => StartKind::At(at.saturating_sub(time)),
+            StartKind::After { clip, offset } => StartKind::After {
                 clip,
                 offset: offset.shift(time, false),
             },
+        })
+    }
+
+    /// The clip that this start follows, if it is relative.
+    #[must_use]
+    pub fn reference(&self) -> Option<&str> {
+        match &self.0 {
+            StartKind::At(_) => None,
+            StartKind::After { clip, .. } => Some(clip),
         }
     }
 }
@@ -143,9 +147,9 @@ pub(crate) fn seconds(time: Duration) -> String {
 
 /// The `data-start` value of `start`.
 pub(crate) fn start_attr(start: &Start) -> String {
-    match start {
-        Start::At(at) => seconds(*at),
-        Start::After { clip, offset } => {
+    match &start.0 {
+        StartKind::At(at) => seconds(*at),
+        StartKind::After { clip, offset } => {
             let ms = offset.signed_millis();
             match ms.cmp(&0) {
                 std::cmp::Ordering::Equal => clip.clone(),
