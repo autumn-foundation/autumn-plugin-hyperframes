@@ -147,7 +147,7 @@ them. (Verus is not available in this environment; property tests take its place
 | Rule | Statement |
 |---|---|
 | S1 | Each id matches `[A-Za-z][A-Za-z0-9_-]{0,127}`. |
-| S2 | The root id, all clip ids and all nested composition ids are unique. |
+| S2 | The root id and all clip ids are unique. A nested composition id can repeat (the runtime gives each copy its own id), but it is not the root id. |
 | S3 | Width and height are in `1..=16384`. |
 | S4 | A timeline-free composition has a duration. Each set duration is more than zero. |
 | S5 | HTML and nested composition clips have a duration. |

@@ -123,17 +123,38 @@ fn s2_rejects_duplicate_ids() {
             .clip(
                 Clip::composition("b", "/b.html")
                     .duration(secs(1.0))
-                    .composition_id("a"),
+                    .composition_id("intro"),
             )
             .build(),
     );
     assert_eq!(
-        errs.iter()
-            .filter(|e| matches!(e, CompositionError::DuplicateId { .. }))
-            .count(),
-        3,
-        "{errs:?}"
+        errs,
+        [
+            CompositionError::DuplicateId { id: "intro".into() },
+            CompositionError::DuplicateId { id: "a".into() },
+            CompositionError::DuplicateId { id: "intro".into() },
+        ]
     );
+}
+
+#[test]
+fn s2_nested_composition_ids_can_repeat() {
+    // One source file, two copies. The runtime gives each copy its own id.
+    Composition::builder("host")
+        .duration(secs(2.0))
+        .clip(
+            Clip::composition("pro", "/card.html")
+                .composition_id("card")
+                .duration(secs(1.0)),
+        )
+        .clip(
+            Clip::composition("team", "/card.html")
+                .composition_id("card")
+                .duration(secs(1.0)),
+        )
+        .clip(Clip::html("card", html! {}).duration(secs(1.0)))
+        .build()
+        .expect("nested ids can repeat and do not clash with element ids");
 }
 
 #[test]
@@ -602,10 +623,8 @@ fn template_wraps_the_root_for_nested_use() {
     );
     assert!(html.ends_with("</template>"), "{html}");
     assert!(
-        html.contains(
-            r#"<div id="pricing" class="hf-root" data-composition-id="pricing" data-duration="2""#
-        ),
-        "a nested root has no data-start: {html}"
+        html.contains(r#"<div class="hf-root" data-composition-id="pricing" data-duration="2""#),
+        "a nested root has no id (the host has it) and no data-start: {html}"
     );
     assert!(html.contains("data-composition-variables="), "{html}");
     assert!(

@@ -1,0 +1,60 @@
+/* Composition styles for the demo. The HyperFrames runtime seeks these CSS animations. */
+.hf-root {
+  background: #1b1b1f;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+.scene {
+  display: grid;
+  place-items: center;
+}
+.scene h1 {
+  margin: 0;
+  font-size: 96px;
+}
+.scene p {
+  font-size: 48px;
+}
+.logo.clip {
+  inset: auto 48px 48px auto;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+.rise h1 {
+  animation: hf-rise 0.8s ease-out both;
+}
+.pop h1 {
+  animation: hf-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.fade p {
+  animation: hf-fade 1s ease-in both;
+}
+@keyframes hf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(60px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hf-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

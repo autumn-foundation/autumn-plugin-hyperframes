@@ -238,7 +238,10 @@ impl Composition {
         }
     }
 
-    /// The root element. `top_level` adds `data-start="0"`.
+    /// The root element.
+    ///
+    /// `top_level` adds the element `id` and `data-start="0"`. A nested root
+    /// has neither: its host element has the id and the start.
     fn root(&self, with_variables: bool, top_level: bool) -> Markup {
         let variables = if with_variables {
             self.variables_json()
@@ -246,7 +249,7 @@ impl Composition {
             None
         };
         html! {
-            div id=(self.id) class="hf-root" data-composition-id=(self.id)
+            div id=[top_level.then_some(self.id.as_str())] class="hf-root" data-composition-id=(self.id)
                 data-start=[top_level.then_some("0")]
                 data-duration=[self.duration.map(seconds)]
                 data-width=(self.width) data-height=(self.height)
@@ -544,22 +547,26 @@ impl CompositionBuilder {
         }
     }
 
-    /// S2: the root id, clip ids and nested composition ids are unique.
+    /// S2: the root id and the clip ids are unique. A nested composition id
+    /// can repeat (the runtime gives each copy its own id), but it must not be
+    /// the root id.
     fn check_unique_ids(&self, errors: &mut Vec<CompositionError>) {
         let mut seen = HashSet::new();
         seen.insert(self.id.as_str());
         for clip in &self.clips {
-            let mut ids = vec![clip.id.as_str()];
-            if let AnyKind::Nested(n) = &clip.kind
-                && let Some(composition_id) = n.composition_id.as_deref()
-                && composition_id != clip.id
-            {
-                ids.push(composition_id);
+            if !seen.insert(clip.id.as_str()) {
+                errors.push(CompositionError::DuplicateId {
+                    id: clip.id.clone(),
+                });
             }
-            for id in ids {
-                if !seen.insert(id) {
-                    errors.push(CompositionError::DuplicateId { id: id.to_owned() });
-                }
+        }
+        for clip in &self.clips {
+            if let AnyKind::Nested(n) = &clip.kind
+                && n.composition_id.as_deref() == Some(self.id.as_str())
+            {
+                errors.push(CompositionError::DuplicateId {
+                    id: self.id.clone(),
+                });
             }
         }
     }

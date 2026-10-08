@@ -1,0 +1,44 @@
+/* Demo page styles. */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #111;
+  color: #eee;
+}
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+section {
+  margin: 48px 0;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.controls button,
+#more,
+.card button {
+  padding: 8px 14px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #222;
+  color: #eee;
+  font: inherit;
+}
+.tall {
+  padding-top: 110vh;
+}
+.card {
+  max-width: 320px;
+  margin: 16px 0;
+}
+a {
+  color: #f0a35e;
+}
+hyperframes-player[data-hf-state="playing"] {
+  outline: 2px solid #f0a35e;
+}
