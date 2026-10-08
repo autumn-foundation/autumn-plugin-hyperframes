@@ -57,30 +57,109 @@ impl Start {
     }
 
     /// Moves the start later by `time`.
+    ///
+    /// An absolute start saturates at the largest `Duration`.
     #[must_use]
     pub fn plus(self, time: Duration) -> Self {
-        let _ = time;
-        self
+        match self {
+            Self::At(at) => Self::At(at.saturating_add(time)),
+            Self::After { clip, offset } => Self::After {
+                clip,
+                offset: offset.shift(time, true),
+            },
+        }
     }
 
     /// Moves the start earlier by `time`.
+    ///
+    /// An absolute start stops at zero. A relative start can go before the end
+    /// of its clip (overlap). The runtime clamps the result at zero.
     #[must_use]
     pub fn minus(self, time: Duration) -> Self {
-        let _ = time;
-        self
+        match self {
+            Self::At(at) => Self::At(at.saturating_sub(time)),
+            Self::After { clip, offset } => Self::After {
+                clip,
+                offset: offset.shift(time, false),
+            },
+        }
+    }
+}
+
+impl Offset {
+    /// Adds `time` (`later`) or subtracts it.
+    fn shift(self, time: Duration, later: bool) -> Self {
+        match (self, later) {
+            (Self::Plus(d), true) => Self::Plus(d.saturating_add(time)),
+            (Self::Minus(d), false) => Self::Minus(d.saturating_add(time)),
+            (Self::Plus(d), false) | (Self::Minus(d), true) => {
+                let flipped = matches!(self, Self::Plus(_));
+                if time > d {
+                    if flipped {
+                        Self::Minus(time - d)
+                    } else {
+                        Self::Plus(time - d)
+                    }
+                } else if flipped {
+                    Self::Plus(d - time)
+                } else {
+                    Self::Minus(d - time)
+                }
+            }
+        }
+    }
+
+    /// The offset in whole milliseconds, with its sign.
+    pub(crate) fn signed_millis(self) -> i128 {
+        match self {
+            Self::Plus(d) => i128::from(millis(d)),
+            Self::Minus(d) => -i128::from(millis(d)),
+        }
+    }
+}
+
+/// `time` rounded to the nearest millisecond.
+pub(crate) fn millis(time: Duration) -> u64 {
+    let ms = (time.as_nanos() + 500_000) / 1_000_000;
+    u64::try_from(ms).unwrap_or(u64::MAX)
+}
+
+/// Formats milliseconds as seconds: `2500` gives `2.5`, `3000` gives `3`.
+pub(crate) fn format_millis(ms: u128) -> String {
+    let (whole, frac) = (ms / 1000, ms % 1000);
+    if frac == 0 {
+        whole.to_string()
+    } else {
+        let digits = format!("{frac:03}");
+        format!("{whole}.{}", digits.trim_end_matches('0'))
     }
 }
 
 /// Formats `time` in seconds for a `data-*` attribute.
+///
+/// The value has at most three decimals and no exponent, so the runtime
+/// number grammar accepts it. Times round to the nearest millisecond.
 pub(crate) fn seconds(time: Duration) -> String {
-    let _ = time;
-    String::new()
+    format_millis(u128::from(millis(time)))
 }
 
 /// The `data-start` value of `start`.
 pub(crate) fn start_attr(start: &Start) -> String {
-    let _ = start;
-    String::new()
+    match start {
+        Start::At(at) => seconds(*at),
+        Start::After { clip, offset } => {
+            let ms = offset.signed_millis();
+            match ms.cmp(&0) {
+                std::cmp::Ordering::Equal => clip.clone(),
+                std::cmp::Ordering::Greater => {
+                    format!("{clip} + {}", format_millis(ms.unsigned_abs()))
+                }
+                std::cmp::Ordering::Less => {
+                    format!("{clip} - {}", format_millis(ms.unsigned_abs()))
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -124,7 +203,9 @@ mod tests {
             .minus(Duration::from_secs(1))
             .plus(Duration::from_millis(250));
         assert_eq!(start_attr(&s), "a - 0.75");
-        let s = Start::after("a").plus(Duration::from_secs(1)).minus(Duration::from_secs(1));
+        let s = Start::after("a")
+            .plus(Duration::from_secs(1))
+            .minus(Duration::from_secs(1));
         assert_eq!(start_attr(&s), "a");
     }
 

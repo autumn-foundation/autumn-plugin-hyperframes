@@ -23,7 +23,10 @@ pub(crate) enum VariableKind {
     Number(f64),
     Color(String),
     Boolean(bool),
-    Enum { options: Vec<String>, default: String },
+    Enum {
+        options: Vec<String>,
+        default: String,
+    },
     Font(String),
     Image(String),
 }

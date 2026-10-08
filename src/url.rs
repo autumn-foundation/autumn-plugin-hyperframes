@@ -1,9 +1,22 @@
 //! URL safety check for `src` and `href` values.
 
 /// True when `url` is not empty and does not run script.
+///
+/// Browsers drop tab and newline characters in a URL and skip leading control
+/// characters, so the check does too before it reads the scheme.
 pub(crate) fn is_safe_url(url: &str) -> bool {
-    let _ = url;
-    true
+    let cleaned: String = url
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .collect();
+    let trimmed = cleaned.trim_matches(|c: char| c <= ' ');
+    if trimmed.is_empty() {
+        return false;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    !["javascript:", "vbscript:", "data:text/html"]
+        .iter()
+        .any(|scheme| lower.starts_with(scheme))
 }
 
 #[cfg(test)]

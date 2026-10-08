@@ -48,8 +48,10 @@ impl AsRef<str> for Id {
 
 /// True when `id` matches the id grammar.
 pub(crate) fn is_valid_id(id: &str) -> bool {
-    let _ = id;
-    true
+    let mut bytes = id.bytes();
+    id.len() <= MAX_ID_LEN
+        && bytes.next().is_some_and(|b| b.is_ascii_alphabetic())
+        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 #[cfg(test)]

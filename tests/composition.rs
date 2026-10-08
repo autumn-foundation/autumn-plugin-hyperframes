@@ -61,13 +61,26 @@ fn a_valid_composition_builds() {
 
 #[test]
 fn default_size_is_full_hd() {
-    let comp = Composition::builder("c").duration(secs(1.0)).build().expect("ok");
+    let comp = Composition::builder("c")
+        .duration(secs(1.0))
+        .build()
+        .expect("ok");
     assert_eq!((comp.width(), comp.height()), (1920, 1080));
 }
 
 #[test]
 fn s1_rejects_bad_ids() {
-    for bad in ["", "12", "1abc", "has space", "a.b", "a:b", "a+b", "ä", &"a".repeat(129)] {
+    for bad in [
+        "",
+        "12",
+        "1abc",
+        "has space",
+        "a.b",
+        "a:b",
+        "a+b",
+        "ä",
+        &"a".repeat(129),
+    ] {
         let errs = errors(Composition::builder(bad).duration(secs(1.0)).build());
         assert!(
             errs.contains(&CompositionError::InvalidId { id: bad.to_owned() }),
@@ -104,7 +117,11 @@ fn s2_rejects_duplicate_ids() {
             .clip(Clip::html("intro", html! {}).duration(secs(1.0)))
             .clip(Clip::html("a", html! {}).duration(secs(1.0)))
             .clip(Clip::image("a", "/x.png"))
-            .clip(Clip::composition("b", "/b.html").duration(secs(1.0)).composition_id("a"))
+            .clip(
+                Clip::composition("b", "/b.html")
+                    .duration(secs(1.0))
+                    .composition_id("a"),
+            )
             .build(),
     );
     assert_eq!(
@@ -119,8 +136,19 @@ fn s2_rejects_duplicate_ids() {
 #[test]
 fn s3_rejects_bad_sizes() {
     for (w, h) in [(0, 1080), (1920, 0), (16385, 10), (10, 16385)] {
-        let errs = errors(Composition::builder("c").size(w, h).duration(secs(1.0)).build());
-        assert_eq!(errs, [CompositionError::InvalidSize { width: w, height: h }]);
+        let errs = errors(
+            Composition::builder("c")
+                .size(w, h)
+                .duration(secs(1.0))
+                .build(),
+        );
+        assert_eq!(
+            errs,
+            [CompositionError::InvalidSize {
+                width: w,
+                height: h
+            }]
+        );
     }
     Composition::builder("c")
         .size(16384, 1)
@@ -182,10 +210,26 @@ fn s6_references_must_exist_and_not_cycle() {
     let errs = errors(
         Composition::builder("c")
             .duration(secs(1.0))
-            .clip(Clip::html("a", html! {}).duration(secs(1.0)).start(Start::after("ghost")))
-            .clip(Clip::html("b", html! {}).duration(secs(1.0)).start(Start::after("b")))
-            .clip(Clip::html("x", html! {}).duration(secs(1.0)).start(Start::after("y")))
-            .clip(Clip::html("y", html! {}).duration(secs(1.0)).start(Start::after("x")))
+            .clip(
+                Clip::html("a", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("ghost")),
+            )
+            .clip(
+                Clip::html("b", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("b")),
+            )
+            .clip(
+                Clip::html("x", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("y")),
+            )
+            .clip(
+                Clip::html("y", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("x")),
+            )
             .build(),
     );
     assert_eq!(
@@ -229,7 +273,11 @@ fn s7_rejects_out_of_range_volume_and_rate() {
             .clip(Clip::audio("b", "/b.mp3").volume(-0.1))
             .clip(Clip::audio("d", "/d.mp3").volume(f64::NAN))
             .clip(Clip::video("e", "/e.mp4", VideoAudio::Muted).playback_rate(0.05))
-            .clip(Clip::composition("f", "/f.html").duration(secs(1.0)).playback_rate(11.0))
+            .clip(
+                Clip::composition("f", "/f.html")
+                    .duration(secs(1.0))
+                    .playback_rate(11.0),
+            )
             .clip(Clip::audio("g", "/g.mp3").playback_rate(f64::INFINITY))
             .build(),
     );
@@ -260,7 +308,10 @@ fn s8_rejects_unsafe_and_empty_urls() {
             .build(),
     );
     assert_eq!(errs.len(), 6, "{errs:?}");
-    assert!(errs.iter().all(|e| matches!(e, CompositionError::UnsafeUrl { .. })));
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, CompositionError::UnsafeUrl { .. }))
+    );
     Composition::builder("c")
         .duration(secs(1.0))
         .clip(Clip::image("a", "data:image/png;base64,AAAA"))
@@ -286,7 +337,9 @@ fn s9_rejects_bad_variables() {
         errs,
         [
             CompositionError::InvalidId { id: "1bad".into() },
-            CompositionError::DuplicateVariable { variable: "title".into() },
+            CompositionError::DuplicateVariable {
+                variable: "title".into()
+            },
             CompositionError::InvalidVariable {
                 variable: "n".into(),
                 reason: "the default is not a finite number"
@@ -368,9 +421,17 @@ fn s11_a_negative_relative_start_clamps_to_zero() {
     let comp = Composition::builder("c")
         .duration(secs(5.0))
         .clip(Clip::html("a", html! {}).duration(secs(1.0)))
-        .clip(Clip::html("b", html! {}).duration(secs(1.0)).start(Start::after("a").minus(secs(4.0))))
+        .clip(
+            Clip::html("b", html! {})
+                .duration(secs(1.0))
+                .start(Start::after("a").minus(secs(4.0))),
+        )
         .clip(Clip::audio("v", "/v.mp3"))
-        .clip(Clip::html("d", html! {}).duration(secs(1.0)).start(Start::after("v")))
+        .clip(
+            Clip::html("d", html! {})
+                .duration(secs(1.0))
+                .start(Start::after("v")),
+        )
         .build()
         .expect("ok");
     assert_eq!(comp.resolved_start("b"), Some(Duration::ZERO));
@@ -379,7 +440,10 @@ fn s11_a_negative_relative_start_clamps_to_zero() {
 
 #[test]
 fn build_error_lists_every_error() {
-    let err = Composition::builder("1").size(0, 0).build().expect_err("fails");
+    let err = Composition::builder("1")
+        .size(0, 0)
+        .build()
+        .expect_err("fails");
     let text = err.to_string();
     assert!(text.starts_with("3 composition errors"), "{text}");
     assert!(text.contains("`1` is not a valid id"), "{text}");
@@ -459,15 +523,19 @@ fn nested_composition_id_defaults_to_the_clip_id() {
         .clip(Clip::composition("pricing", "/p").duration(secs(1.0)))
         .build()
         .expect("ok");
-    assert!(comp
-        .fragment()
-        .into_string()
-        .contains(r#"<div id="pricing" data-composition-id="pricing" data-composition-src="/p""#));
+    assert!(
+        comp.fragment().into_string().contains(
+            r#"<div id="pricing" data-composition-id="pricing" data-composition-src="/p""#
+        )
+    );
 }
 
 #[test]
 fn with_timeline_drops_data_no_timeline() {
-    let comp = Composition::builder("c").with_timeline().build().expect("ok");
+    let comp = Composition::builder("c")
+        .with_timeline()
+        .build()
+        .expect("ok");
     let html = comp.fragment().into_string();
     assert!(!html.contains("data-no-timeline"), "{html}");
     assert!(!html.contains("data-duration"), "{html}");
@@ -485,13 +553,23 @@ fn document_is_a_full_page_with_the_runtime() {
         .build()
         .expect("ok");
     let html = comp.document().into_string();
-    let runtime = HYPERFRAMES_ASSETS.get("hyperframe.runtime.iife.js").expect("runtime");
+    let runtime = HYPERFRAMES_ASSETS
+        .get("hyperframe.runtime.iife.js")
+        .expect("runtime");
     let css = HYPERFRAMES_ASSETS.get("composition.css").expect("css");
     assert!(html.starts_with("<!DOCTYPE html><html lang=\"en\" data-composition-variables=\"[{&quot;default&quot;:&quot;Pro&quot;,&quot;id&quot;:&quot;title&quot;,&quot;label&quot;:&quot;Title&quot;,&quot;type&quot;:&quot;string&quot;}]\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=1280, height=720\"><title>Intro video</title>"), "{html}");
     for part in [
-        format!(r#"<link rel="stylesheet" href="{}" integrity="{}" crossorigin="anonymous">"#, css.url(), css.integrity()),
+        format!(
+            r#"<link rel="stylesheet" href="{}" integrity="{}" crossorigin="anonymous">"#,
+            css.url(),
+            css.integrity()
+        ),
         r#"<link rel="stylesheet" href="/static/css/intro.css">"#.to_owned(),
-        format!(r#"<script src="{}" integrity="{}" crossorigin="anonymous"></script>"#, runtime.url(), runtime.integrity()),
+        format!(
+            r#"<script src="{}" integrity="{}" crossorigin="anonymous"></script>"#,
+            runtime.url(),
+            runtime.integrity()
+        ),
         r#"<script src="/static/js/intro.js"></script></body></html>"#.to_owned(),
     ] {
         assert!(html.contains(&part), "missing {part}\nin {html}");
@@ -499,7 +577,11 @@ fn document_is_a_full_page_with_the_runtime() {
     // The runtime loads in <head>, before the body scripts.
     assert!(html.find(runtime.url()) < html.find("<body>"), "{html}");
     // The root in a document has no variables attribute (it is on <html>).
-    assert_eq!(html.matches("data-composition-variables").count(), 1, "{html}");
+    assert_eq!(
+        html.matches("data-composition-variables").count(),
+        1,
+        "{html}"
+    );
 }
 
 #[test]
@@ -511,22 +593,36 @@ fn template_wraps_the_root_for_nested_use() {
         .build()
         .expect("ok");
     let html = comp.template().into_string();
-    assert!(html.starts_with(r#"<template id="pricing-template">"#), "{html}");
+    assert!(
+        html.starts_with(r#"<template id="pricing-template">"#),
+        "{html}"
+    );
     assert!(html.ends_with("</template>"), "{html}");
     assert!(
-        html.contains(r#"<div id="pricing" class="hf-root" data-composition-id="pricing" data-duration="2""#),
+        html.contains(
+            r#"<div id="pricing" class="hf-root" data-composition-id="pricing" data-duration="2""#
+        ),
         "a nested root has no data-start: {html}"
     );
     assert!(html.contains("data-composition-variables="), "{html}");
-    assert!(html.contains(r#"<script src="/static/js/pricing.js"></script>"#), "{html}");
-    assert!(!html.contains("hyperframe.runtime"), "the parent loads the runtime: {html}");
+    assert!(
+        html.contains(r#"<script src="/static/js/pricing.js"></script>"#),
+        "{html}"
+    );
+    assert!(
+        !html.contains("hyperframe.runtime"),
+        "the parent loads the runtime: {html}"
+    );
 }
 
 #[test]
 fn srcdoc_html_has_no_runtime_tag() {
     let html = intro().srcdoc_html();
     assert!(html.starts_with("<!DOCTYPE html>"), "{html}");
-    assert!(!html.contains("hyperframe.runtime"), "the player inserts it: {html}");
+    assert!(
+        !html.contains("hyperframe.runtime"),
+        "the player inserts it: {html}"
+    );
     assert!(html.contains("composition."), "{html}");
 }
 
@@ -565,7 +661,11 @@ fn bind_src_writes_data_var_src() {
         .clip(Clip::image("a", "/logo.png").bind_src("logo"))
         .build()
         .expect("ok");
-    assert!(comp.fragment().into_string().contains(r#"data-var-src="logo""#));
+    assert!(
+        comp.fragment()
+            .into_string()
+            .contains(r#"data-var-src="logo""#)
+    );
 }
 
 #[test]
@@ -578,7 +678,10 @@ fn text_and_urls_are_escaped() {
         .expect("ok");
     let html = comp.document().into_string();
     assert!(html.contains("<title>&lt;b&gt;&amp;</title>"), "{html}");
-    assert!(html.contains(r#"src="/a.png&quot;onerror=&quot;x""#), "{html}");
+    assert!(
+        html.contains(r#"src="/a.png&quot;onerror=&quot;x""#),
+        "{html}"
+    );
     assert!(!html.contains("<script>\""), "{html}");
 }
 

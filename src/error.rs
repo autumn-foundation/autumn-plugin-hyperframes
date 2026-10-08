@@ -45,7 +45,9 @@ pub enum CompositionError {
         clip: String,
     },
     /// A relative start names a clip that is not in the composition (S6).
-    #[error("the clip `{clip}` starts after `{reference}`, but that clip is not in the composition")]
+    #[error(
+        "the clip `{clip}` starts after `{reference}`, but that clip is not in the composition"
+    )]
     UnknownReference {
         /// The clip id.
         clip: String,
@@ -136,7 +138,18 @@ impl BuildError {
 
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let _ = f;
+        let n = self.0.len();
+        write!(
+            f,
+            "{n} composition error{}: ",
+            if n == 1 { "" } else { "s" }
+        )?;
+        for (i, error) in self.0.iter().enumerate() {
+            if i > 0 {
+                f.write_str("; ")?;
+            }
+            write!(f, "{error}")?;
+        }
         Ok(())
     }
 }
