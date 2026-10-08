@@ -613,21 +613,38 @@ fn document_is_a_full_page_with_the_runtime() {
 fn template_wraps_the_root_for_nested_use() {
     let comp = Composition::builder("pricing")
         .duration(secs(2.0))
+        .stylesheet("/static/css/pricing.css")
         .script("/static/js/pricing.js")
         .variable(Variable::number("count", 3.0))
         .build()
         .expect("ok");
     let html = comp.template().into_string();
+    // The runtime reads nested defaults from <html> only, so the file is a document.
     assert!(
-        html.starts_with(r#"<template id="pricing-template">"#),
+        html.starts_with(
+            "<!DOCTYPE html><html data-composition-variables=\"[{&quot;default&quot;:3.0,"
+        ),
         "{html}"
     );
-    assert!(html.ends_with("</template>"), "{html}");
+    assert!(
+        html.contains(r#"<body><template id="pricing-template">"#),
+        "{html}"
+    );
+    assert!(html.ends_with("</template></body></html>"), "{html}");
     assert!(
         html.contains(r#"<div class="hf-root" data-composition-id="pricing" data-duration="2""#),
         "a nested root has no id (the host has it) and no data-start: {html}"
     );
-    assert!(html.contains("data-composition-variables="), "{html}");
+    // The root keeps a copy of the declarations too.
+    assert_eq!(
+        html.matches("data-composition-variables=").count(),
+        2,
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"<link rel="stylesheet" href="/static/css/pricing.css">"#),
+        "{html}"
+    );
     assert!(
         html.contains(r#"<script src="/static/js/pricing.js"></script>"#),
         "{html}"
@@ -639,14 +656,288 @@ fn template_wraps_the_root_for_nested_use() {
 }
 
 #[test]
-fn srcdoc_html_has_no_runtime_tag() {
-    let html = intro().srcdoc_html();
+fn template_without_variables_has_a_plain_html_element() {
+    let comp = Composition::builder("p")
+        .duration(secs(1.0))
+        .build()
+        .expect("ok");
+    assert!(
+        comp.template()
+            .into_string()
+            .starts_with("<!DOCTYPE html><html><body><template id=\"p-template\">")
+    );
+}
+
+#[test]
+fn nested_clip_from_a_composition_copies_its_contract() {
+    let inner = Composition::builder("pricing")
+        .size(1280, 720)
+        .duration(secs(3.0))
+        .build()
+        .expect("ok");
+    let host = Composition::builder("host")
+        .duration(secs(3.0))
+        .clip(Clip::nested("plan", "/p.html", &inner).value("plan", "Pro"))
+        .build()
+        .expect("ok");
+    let html = host.fragment().into_string();
+    assert!(
+        html.contains(r#"<div id="plan" data-composition-id="pricing" data-composition-src="/p.html" data-start="0" data-duration="3" data-width="1280" data-height="720" data-no-timeline data-variable-values="{&quot;plan&quot;:&quot;Pro&quot;}"></div>"#),
+        "{html}"
+    );
+    assert_eq!(host.resolved_end("plan"), Some(secs(3.0)));
+}
+
+#[test]
+fn nested_clip_with_a_timeline_has_no_opt_out() {
+    let inner = Composition::builder("anim")
+        .with_timeline()
+        .build()
+        .expect("ok");
+    let host = Composition::builder("host")
+        .duration(secs(3.0))
+        .clip(Clip::nested("a", "/a.html", &inner).duration(secs(2.0)))
+        .build()
+        .expect("ok");
+    let html = host.fragment().into_string();
+    assert!(
+        !html.contains(
+            r#"data-composition-src="/a.html" data-start="0" data-duration="2" data-no-timeline"#
+        ),
+        "{html}"
+    );
+    assert!(html.contains(r#"data-composition-id="anim""#), "{html}");
+    let manual = Composition::builder("host")
+        .duration(secs(3.0))
+        .clip(
+            Clip::composition("b", "/b.html")
+                .duration(secs(1.0))
+                .no_timeline(),
+        )
+        .build()
+        .expect("ok");
+    assert!(
+        manual
+            .fragment()
+            .into_string()
+            .contains(" data-no-timeline></div>")
+    );
+}
+
+#[test]
+fn s12_a_repeated_nested_composition_must_use_absolute_starts() {
+    let relative = Composition::builder("scene")
+        .duration(secs(4.0))
+        .clip(Clip::html("t", html! {}).duration(secs(2.0)))
+        .clip(
+            Clip::html("p", html! {})
+                .duration(secs(2.0))
+                .start(Start::after("t")),
+        )
+        .build()
+        .expect("ok");
+    let errs = errors(
+        Composition::builder("host")
+            .duration(secs(8.0))
+            .clip(Clip::nested("one", "/scene.html", &relative))
+            .clip(Clip::nested("two", "/scene.html", &relative).start(Start::after("one")))
+            .build(),
+    );
+    assert_eq!(
+        errs,
+        [CompositionError::RepeatedRelativeNested {
+            src: "/scene.html".into()
+        }]
+    );
+    let absolute = Composition::builder("scene")
+        .duration(secs(2.0))
+        .clip(Clip::html("t", html! {}).duration(secs(2.0)))
+        .build()
+        .expect("ok");
+    Composition::builder("host")
+        .duration(secs(4.0))
+        .clip(Clip::nested("one", "/scene.html", &absolute))
+        .clip(Clip::nested("two", "/scene.html", &absolute).start(Start::after("one")))
+        .build()
+        .expect("absolute starts can repeat");
+}
+
+#[test]
+fn s13_content_ids_must_not_clash_with_clip_ids() {
+    let errs = errors(
+        Composition::builder("c")
+            .duration(secs(2.0))
+            .clip(Clip::html("a", html! { div id="b" {} }).duration(secs(1.0)))
+            .clip(
+                Clip::html("b", html! { span id="c" {} })
+                    .duration(secs(1.0))
+                    .start(Start::after("a")),
+            )
+            .build(),
+    );
+    assert_eq!(
+        errs,
+        [
+            CompositionError::ContentIdClash {
+                clip: "a".into(),
+                id: "b".into()
+            },
+            CompositionError::ContentIdClash {
+                clip: "b".into(),
+                id: "c".into()
+            },
+        ]
+    );
+    Composition::builder("c")
+        .duration(secs(1.0))
+        .clip(
+            Clip::html("a", html! { div id="inner" data-x="b" { "id=\"b\"" } }).duration(secs(1.0)),
+        )
+        .clip(Clip::image("b", "/b.png"))
+        .build()
+        .expect("other ids and text are fine");
+}
+
+#[test]
+fn s8_urls_follow_an_allowlist_for_each_use() {
+    let errs = errors(
+        Composition::builder("c")
+            .duration(secs(1.0))
+            .stylesheet("data:text/css,a{}")
+            .script("blob:https://x/1")
+            .clip(Clip::image("a", "data:image/svg+xml,<svg/>"))
+            .clip(Clip::image("b", "data: text/html,<b>"))
+            .clip(Clip::video(
+                "d",
+                "data:application/xhtml+xml,x",
+                VideoAudio::Muted,
+            ))
+            .clip(Clip::composition("e", "data:text/plain,x").duration(secs(1.0)))
+            .clip(Clip::composition("f", "ftp://x/y").duration(secs(1.0)))
+            .build(),
+    );
+    assert_eq!(errs.len(), 7, "{errs:?}");
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, CompositionError::UnsafeUrl { .. }))
+    );
+    Composition::builder("c")
+        .duration(secs(1.0))
+        .stylesheet("//cdn.example.com/a.css")
+        .script("https://example.com/a.js")
+        .clip(Clip::image("a", "blob:https://example.com/1"))
+        .clip(Clip::video(
+            "b",
+            "data:video/mp4;base64,AAAA",
+            VideoAudio::Muted,
+        ))
+        .clip(Clip::audio("d", "data:audio/mpeg;base64,AAAA"))
+        .clip(Clip::composition("e", "compositions/e.html?x=1#y").duration(secs(1.0)))
+        .build()
+        .expect("allowed URLs");
+}
+
+#[test]
+fn s3_nested_size_must_be_in_range() {
+    let errs = errors(
+        Composition::builder("c")
+            .duration(secs(1.0))
+            .clip(
+                Clip::composition("n", "/n.html")
+                    .duration(secs(1.0))
+                    .size(0, 10),
+            )
+            .build(),
+    );
+    assert_eq!(
+        errs,
+        [CompositionError::InvalidSize {
+            owner: "n".into(),
+            width: 0,
+            height: 10
+        }]
+    );
+}
+
+#[test]
+fn s6_a_tail_into_a_loop_reports_the_loop_once() {
+    let errs = errors(
+        Composition::builder("c")
+            .duration(secs(1.0))
+            .clip(
+                Clip::html("c0", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("c1")),
+            )
+            .clip(
+                Clip::html("c1", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("c2")),
+            )
+            .clip(
+                Clip::html("c2", html! {})
+                    .duration(secs(1.0))
+                    .start(Start::after("c1")),
+            )
+            .build(),
+    );
+    assert_eq!(
+        errs,
+        [CompositionError::ReferenceCycle {
+            clips: vec!["c1".into(), "c2".into()]
+        }]
+    );
+}
+
+#[test]
+fn one_error_reads_in_the_singular() {
+    let err = Composition::builder("c").build().expect_err("fails");
+    assert!(
+        err.to_string().starts_with("1 composition error: "),
+        "{err}"
+    );
+}
+
+#[test]
+fn nested_values_of_every_type_render() {
+    let comp = Composition::builder("c")
+        .duration(secs(1.0))
+        .clip(
+            Clip::composition("n", "/n.html")
+                .duration(secs(1.0))
+                .value("a", 1.5)
+                .value("b", String::from("x"))
+                .value("c", 7_i64)
+                .value("d", 8_u32),
+        )
+        .build()
+        .expect("ok");
+    let html = comp.fragment().into_string().replace("&quot;", "\"");
+    assert!(html.contains(r#"{"a":1.5,"b":"x","c":7,"d":8}"#), "{html}");
+}
+
+#[test]
+fn srcdoc_html_links_the_runtime_by_its_plain_url() {
+    let runtime = HYPERFRAMES_ASSETS
+        .get("hyperframe.runtime.iife.js")
+        .expect("runtime");
+    let comp = Composition::builder("c")
+        .duration(secs(1.0))
+        // This text matches the player's "runtime is present" test.
+        .title("__hyperframes = 1")
+        .build()
+        .expect("ok");
+    let html = comp.srcdoc_html();
     assert!(html.starts_with("<!DOCTYPE html>"), "{html}");
     assert!(
-        !html.contains("hyperframe.runtime"),
-        "the player inserts it: {html}"
+        html.contains(&format!(
+            r#"<script src="{}" integrity="{}" crossorigin="anonymous"></script>"#,
+            runtime.plain_url(),
+            runtime.integrity()
+        )),
+        "the srcdoc always carries the runtime: {html}"
     );
-    assert!(html.contains("composition."), "{html}");
+    assert_eq!(html.matches("hyperframe.runtime").count(), 1, "{html}");
 }
 
 #[test]

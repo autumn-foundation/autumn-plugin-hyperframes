@@ -116,6 +116,20 @@ pub enum CompositionError {
         /// Why it is not valid.
         reason: &'static str,
     },
+    /// One nested composition with relative starts plays more than one time (S12).
+    #[error("`{src}` plays more than one time, but it has relative starts")]
+    RepeatedRelativeNested {
+        /// The nested composition URL.
+        src: String,
+    },
+    /// HTML content has an element id that is also a clip id (S13).
+    #[error("the content of `{clip}` has the id `{id}`, which is also a clip id")]
+    ContentIdClash {
+        /// The clip with the content.
+        clip: String,
+        /// The id that clashes.
+        id: String,
+    },
     /// `bind_src` names a variable that is not declared (S10).
     #[error("the clip `{clip}` binds the variable `{variable}`, but it is not declared")]
     UnknownVariable {

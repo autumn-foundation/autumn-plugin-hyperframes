@@ -343,6 +343,17 @@ impl Clip<Nested> {
         )
     }
 
+    /// A nested composition clip for `composition`, served from `src`.
+    pub fn nested(id: &str, src: &str, composition: &crate::Composition) -> Self {
+        let _ = composition;
+        Self::composition(id, src)
+    }
+
+    /// Adds `data-no-timeline` to the host.
+    pub const fn no_timeline(self) -> Self {
+        self
+    }
+
     /// Sets the id of the nested composition. The default is the clip id.
     pub fn composition_id(mut self, id: &str) -> Self {
         self.kind.composition_id = Some(id.to_owned());

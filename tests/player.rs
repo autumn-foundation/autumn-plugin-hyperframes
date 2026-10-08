@@ -86,13 +86,82 @@ fn every_option_maps_to_one_attribute() {
         format!(
             concat!(
                 r#"<hyperframes-player id="intro-player" class="hf-ratio-9x16 hero" role="group" aria-label="Product intro" "#,
-                r#"src="/c" width="1080" height="1920" runtime-src="{}" controls muted autoplay loop "#,
+                r#"src="/c" width="1080" height="1920" runtime-src="{}" controls muted loop "#,
                 r#"poster="/static/poster.jpg" playback-rate="1.5" volume="0.5" range-start="0.5" range-end="2" "#,
                 r#"audio-locked sandbox-origin="opaque" low-power-idle disable-click-to-play assets-loading-ui="none" "#,
-                r#"shader-loading="player" data-hf-in-view data-hf-reduced="animate"></hyperframes-player>"#
+                r#"shader-loading="player" data-hf-autoplay data-hf-in-view data-hf-reduced="animate"></hyperframes-player>"#
             ),
             runtime_url()
         )
+    );
+}
+
+#[test]
+fn shader_loading_values() {
+    for (owner, value) in [
+        (ShaderLoading::Composition, "composition"),
+        (ShaderLoading::Player, "player"),
+        (ShaderLoading::Hidden, "none"),
+    ] {
+        let html = Player::src("/c")
+            .shader_loading(owner)
+            .render()
+            .into_string();
+        assert!(
+            html.contains(&format!(r#"shader-loading="{value}""#)),
+            "{html}"
+        );
+    }
+}
+
+#[test]
+fn autoplay_is_handed_to_init_js() {
+    // init.js adds `autoplay` (or plays) only when motion is allowed.
+    let html = Player::src("/c").autoplay().render().into_string();
+    assert!(html.contains(" data-hf-autoplay"), "{html}");
+    assert!(!html.contains(" autoplay"), "{html}");
+}
+
+#[test]
+fn opaque_player_srcdoc_has_no_sri_or_cors_tags() {
+    let c = comp(1280, 720);
+    let html = Player::composition(&c)
+        .opaque_sandbox()
+        .render()
+        .into_string();
+    assert!(html.contains(r#"sandbox-origin="opaque""#), "{html}");
+    let srcdoc = html
+        .split("srcdoc=\"")
+        .nth(1)
+        .expect("srcdoc")
+        .split('"')
+        .next()
+        .expect("value");
+    assert!(!srcdoc.contains("integrity"), "{srcdoc}");
+    assert!(!srcdoc.contains("crossorigin"), "{srcdoc}");
+    assert!(srcdoc.contains("hyperframe.runtime.iife.js"), "{srcdoc}");
+    assert!(srcdoc.contains("composition."), "{srcdoc}");
+}
+
+#[test]
+fn player_urls_follow_the_allowlist() {
+    let html = Player::src("data:image/png;base64,AA")
+        .poster("data:image/svg+xml,<svg/>")
+        .render()
+        .into_string();
+    assert!(
+        !html.contains(" src="),
+        "a page source must be http(s) or relative: {html}"
+    );
+    assert!(!html.contains("poster"), "{html}");
+    let html = Player::video("blob:https://x/1", VideoType::Mp4)
+        .poster("data:image/png;base64,AA")
+        .render()
+        .into_string();
+    assert!(html.contains(r#"src="blob:https://x/1""#), "{html}");
+    assert!(
+        html.contains(r#"poster="data:image/png;base64,AA""#),
+        "{html}"
     );
 }
 
