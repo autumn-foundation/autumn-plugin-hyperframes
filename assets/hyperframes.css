@@ -1,0 +1,21 @@
+/* autumn-plugin-hyperframes: host page styles. */
+
+/* The player fills the width of its container. The default frame is 16:9. */
+hyperframes-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+/* `Player` adds one of these classes when the composition size has this ratio. */
+hyperframes-player.hf-ratio-9x16 { aspect-ratio: 9 / 16; }
+hyperframes-player.hf-ratio-1x1 { aspect-ratio: 1 / 1; }
+hyperframes-player.hf-ratio-4x5 { aspect-ratio: 4 / 5; }
+hyperframes-player.hf-ratio-4x3 { aspect-ratio: 4 / 3; }
+hyperframes-player.hf-ratio-21x9 { aspect-ratio: 21 / 9; }
+
+/* Control buttons from `PlayerControl`. */
+[data-hf-control] {
+  cursor: pointer;
+}

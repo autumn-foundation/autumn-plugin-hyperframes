@@ -1,0 +1,50 @@
+[package]
+name = "autumn-plugin-hyperframes"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Autumn plugin: HyperFrames video compositions and player with typed Rust builders and htmx support."
+# The plugin code and the vendored HyperFrames files are Apache-2.0.
+license = "Apache-2.0"
+repository = "https://github.com/autumn-foundation/autumn-plugin-hyperframes"
+readme = "README.md"
+keywords = ["autumn", "hyperframes", "video", "htmx", "plugin"]
+categories = ["web-programming", "multimedia::video"]
+exclude = [".github/", "docs/", "tests/e2e/", "tests/js/", "CLAUDE.md", "clippy.toml"]
+
+[dependencies]
+# No default features. The host app selects the Autumn features.
+# `maud` is on because the plugin ships Maud helpers.
+autumn-web = { version = "0.8", default-features = false, features = ["maud"] }
+# The `html!` macro expands to `maud::` paths, so the crate must resolve here.
+maud = "0.27"
+# Writes the variable JSON attributes.
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+# `htmx` and `embed-assets` are for the demo example only.
+autumn-web = { version = "0.8", default-features = false, features = ["maud", "embed-assets", "htmx"] }
+base64 = "0.22"
+proptest = "1"
+regex = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+module_name_repetitions = "allow"
+redundant_pub_crate = "allow"
