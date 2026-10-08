@@ -1,0 +1,12 @@
+{
+  "name": "autumn-plugin-hyperframes-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for autumn-plugin-hyperframes. Run from the repo root: npm --prefix tests/e2e test",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 hyperframes.e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

@@ -12,7 +12,7 @@
 //!   CSS animations in `static/css/intro.css` move the clips. The runtime seeks them.
 //! - A composition with a nested composition (`Clip::composition`) and variable values.
 //! - A muted player that plays when it is in view.
-//! - An htmx button that adds one more player.
+//! - An htmx button that adds one more player. It autoplays, muted.
 //!
 //! `/src-mode` plays a composition page from its URL (`src` mode). It needs the
 //! frame settings in `README.md` ("Play a composition from a URL").
@@ -253,10 +253,13 @@ async fn card() -> Markup {
     let n = CARDS.fetch_add(1, Ordering::Relaxed);
     html! {
         div class="card" {
+            // Muted autoplay. With reduced motion, init.js removes `autoplay`.
             (Player::composition(&card_composition(n))
                 .id(&format!("card-player-{n}"))
                 .label(&format!("Card {n}"))
-                .controls())
+                .controls()
+                .muted()
+                .autoplay())
             (PlayerControl::new(&format!("card-player-{n}"), Control::Play))
         }
     }
