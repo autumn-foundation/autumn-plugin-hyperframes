@@ -262,7 +262,7 @@ after(async () => {
 describe("default CSP, srcdoc mode", () => {
   it("every player gets ready with no errors and no other origin", async () => {
     const { page, context, errors, foreign } = await open(url);
-    for (const id of ["intro-player", "plans-player", "opaque-player", "in-view-player"]) {
+    for (const id of ["intro-player", "plans-player", "media-player", "video-player", "opaque-player", "in-view-player"]) {
       await ready(page, id);
     }
     assert.deepEqual((await player(page, "intro-player")).duration, 6);
@@ -412,6 +412,43 @@ describe("default CSP, srcdoc mode", () => {
       (await page.evaluate(() => window.__unobserved)).includes("in-view-player"),
       "init.js unobserved the removed player",
     );
+    assert.deepEqual(errors, []);
+    await context.close();
+  });
+
+  it("media clips play in a composition", async () => {
+    const { page, context, errors } = await open(url);
+    await ready(page, "media-player");
+    assert.equal((await player(page, "media-player")).duration, 2);
+    await eventually(async () => {
+      await seek(page, "media-player", 1);
+      const state = await page.evaluate(() => {
+        const d = document.getElementById("media-player").iframeElement.contentDocument;
+        const v = d.getElementById("footage");
+        const a = d.getElementById("tone");
+        const img = d.getElementById("badge");
+        return {
+          video: [d.defaultView.getComputedStyle(v).visibility, Math.round(v.currentTime * 10) / 10, v.muted],
+          audio: a.getAttribute("data-volume"),
+          image: [d.defaultView.getComputedStyle(img).visibility, img.getAttribute("data-var-src")],
+        };
+      });
+      assert.deepEqual(state, {
+        video: ["visible", 1, true],
+        audio: "0.5",
+        image: ["visible", "badge"],
+      });
+    });
+    assert.deepEqual(errors, []);
+    await context.close();
+  });
+
+  it("a video file plays in the player", async () => {
+    const { page, context, errors } = await open(url);
+    await ready(page, "video-player");
+    assert.equal(Math.round((await player(page, "video-player")).duration), 2);
+    await page.evaluate(() => document.getElementById("video-player").play());
+    await page.waitForFunction(() => document.getElementById("video-player").currentTime > 0.2);
     assert.deepEqual(errors, []);
     await context.close();
   });

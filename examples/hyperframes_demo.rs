@@ -12,6 +12,7 @@
 //!   CSS animations in `static/css/intro.css` move the clips. The runtime seeks them.
 //! - A composition that plays one nested composition two times (`Clip::nested`),
 //!   with variable values and a variable default.
+//! - Video, audio and image clips, and a player for a video file.
 //! - A player with an opaque sandbox.
 //! - A muted player that plays when it is in view.
 //! - An htmx button that adds one more player. It autoplays, muted.
@@ -26,7 +27,7 @@ use std::time::Duration;
 
 use autumn_plugin_hyperframes::{
     Clip, Composition, Control, HyperframesPlugin, Player, PlayerControl, Start, Variable,
-    hyperframes_script, hyperframes_stylesheet,
+    VideoAudio, VideoType, hyperframes_script, hyperframes_stylesheet,
 };
 use autumn_web::assets::asset_url;
 use autumn_web::{Markup, html};
@@ -149,6 +150,37 @@ fn plans() -> Composition {
         .unwrap_or_else(|e| unreachable!("the demo composition is valid: {e}"))
 }
 
+/// Media clips: a muted video, an audio track and a bound image.
+fn media() -> Composition {
+    Composition::builder("media")
+        .size(1280, 720)
+        .duration(secs(2))
+        .stylesheet(&asset_url("css/intro.css"))
+        .variable(Variable::image("badge", &asset_url("img/logo.svg")))
+        .clip(
+            Clip::video("footage", &asset_url("media/clip.webm"), VideoAudio::Muted)
+                .duration(secs(2))
+                .track(0),
+        )
+        .clip(
+            Clip::audio("tone", &asset_url("media/tone.ogg"))
+                .volume(0.5)
+                .fade_in(ms(250))
+                .fade_out(ms(250))
+                .track(1),
+        )
+        .clip(
+            Clip::image("badge", &asset_url("img/logo.svg"))
+                .start(Start::at(ms(500)))
+                .duration(secs(1))
+                .class("logo")
+                .alt("Autumn logo")
+                .bind_src("badge"),
+        )
+        .build()
+        .unwrap_or_else(|e| unreachable!("the demo composition is valid: {e}"))
+}
+
 /// A short card for the in-view and htmx players.
 fn card_composition(n: u32) -> Composition {
     Composition::builder(&format!("card-{n}"))
@@ -208,6 +240,18 @@ async fn index() -> Markup {
         section id="plans-section" {
             h2 { "Nested compositions with variables" }
             (Player::composition(&plans()).id("plans-player").label("Plans video").controls())
+        }
+
+        section id="media-section" {
+            h2 { "Video, audio and image clips" }
+            (Player::composition(&media()).id("media-player").label("Media clips").controls().muted())
+            h2 { "A video file" }
+            (Player::video(&asset_url("media/clip.webm"), VideoType::WebM)
+                .id("video-player")
+                .label("Rendered video")
+                .size(320, 180)
+                .controls()
+                .muted())
         }
 
         section id="opaque-section" {
