@@ -1,0 +1,29 @@
+/* autumn-plugin-hyperframes: composition styles. */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The composition root. `Composition` sets its pixel size. */
+.hf-root {
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* A timed clip fills the frame. The runtime shows it only in its time window. */
+.hf-root .clip {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+}
+
+.hf-root img.clip,
+.hf-root video.clip {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

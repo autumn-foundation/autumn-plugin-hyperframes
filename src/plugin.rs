@@ -5,10 +5,15 @@ use std::borrow::Cow;
 use autumn_web::app::AppBuilder;
 use autumn_web::plugin::Plugin;
 
+use crate::assets::HYPERFRAMES_ASSETS;
+
 /// The plugin name in Autumn diagnostics.
 pub const PLUGIN_NAME: &str = "autumn-plugin-hyperframes";
 
 /// Installs the HyperFrames assets in an Autumn app.
+///
+/// The plugin installs [`HYPERFRAMES_ASSETS`](crate::HYPERFRAMES_ASSETS) through
+/// the Autumn `plugin_assets` seam. It adds no other routes and no startup hooks.
 ///
 /// ```rust,no_run
 /// use autumn_plugin_hyperframes::HyperframesPlugin;
@@ -37,16 +42,14 @@ impl Plugin for HyperframesPlugin {
     }
 
     fn build(self, app: AppBuilder) -> AppBuilder {
-        app
+        app.plugin_assets(&HYPERFRAMES_ASSETS)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::{
-        COMPOSITION_CSS, HOST_CSS, HYPERFRAMES_ASSETS, INIT_JS, PLAYER_JS, RUNTIME_JS,
-    };
+    use crate::assets::{COMPOSITION_CSS, HOST_CSS, INIT_JS, PLAYER_JS, RUNTIME_JS};
     use autumn_web::assets::{PLUGIN_ASSETS_ROUTE_MARKER, asset_url};
     use autumn_web::plugin_conformance::{ConformanceConfig, run_conformance};
     use autumn_web::route_listing::{RouteClassification, RouteSource};
@@ -80,7 +83,9 @@ mod tests {
         for path in ALL {
             let plain = format!("/static/_plugins/hyperframes/{path}");
             let response = client.get(&plain).send().await;
-            response.assert_ok().assert_header("cache-control", REVALIDATE);
+            response
+                .assert_ok()
+                .assert_header("cache-control", REVALIDATE);
             let etag = response.header("etag").expect("etag").to_owned();
             client
                 .get(&plain)

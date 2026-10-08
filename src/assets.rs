@@ -53,7 +53,10 @@ pub static HYPERFRAMES_ASSETS: PluginAssets = PluginAssets::from_files(
             PLAYER_JS,
             include_bytes!("../assets/hyperframes-player.global.js"),
         ),
-        (RUNTIME_JS, include_bytes!("../assets/hyperframe.runtime.iife.js")),
+        (
+            RUNTIME_JS,
+            include_bytes!("../assets/hyperframe.runtime.iife.js"),
+        ),
         (INIT_JS, include_bytes!("../assets/init.js")),
         (HOST_CSS, include_bytes!("../assets/hyperframes.css")),
         (COMPOSITION_CSS, include_bytes!("../assets/composition.css")),
@@ -116,7 +119,10 @@ mod tests {
             // Sorted by logical path. `manifest.json` is not in the bundle.
             [COMPOSITION_CSS, RUNTIME_JS, PLAYER_JS, HOST_CSS, INIT_JS]
         );
-        assert_eq!(HYPERFRAMES_ASSETS.mount_path(), "/static/_plugins/hyperframes");
+        assert_eq!(
+            HYPERFRAMES_ASSETS.mount_path(),
+            "/static/_plugins/hyperframes"
+        );
     }
 
     #[test]
@@ -132,7 +138,12 @@ mod tests {
     #[test]
     fn bundle_integrity_matches_embedded_bytes() {
         for asset in HYPERFRAMES_ASSETS.iter() {
-            assert_eq!(asset.integrity(), sri(asset.bytes()), "{}", asset.logical_path());
+            assert_eq!(
+                asset.integrity(),
+                sri(asset.bytes()),
+                "{}",
+                asset.logical_path()
+            );
         }
     }
 
@@ -183,6 +194,9 @@ mod tests {
             url.starts_with("/static/_plugins/hyperframes/hyperframe.runtime.iife."),
             "{url}"
         );
-        assert_ne!(url, HYPERFRAMES_ASSETS.get(RUNTIME_JS).expect("rt").plain_url());
+        assert_ne!(
+            url,
+            HYPERFRAMES_ASSETS.get(RUNTIME_JS).expect("rt").plain_url()
+        );
     }
 }
