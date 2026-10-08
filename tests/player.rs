@@ -48,7 +48,8 @@ fn composition_player_uses_srcdoc_and_the_composition_size() {
         )),
         "{html}"
     );
-    assert!(!html.contains(" src="), "{html}");
+    // No `src` attribute on the element (escaped quotes are inside srcdoc).
+    assert!(!html.contains(r#" src=""#), "{html}");
     // The srcdoc is escaped once: the markup is text in the attribute.
     assert!(
         html.contains("&lt;h1&gt;Hi &amp;amp; bye&lt;/h1&gt;"),

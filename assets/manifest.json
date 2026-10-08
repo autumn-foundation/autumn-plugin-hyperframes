@@ -20,7 +20,7 @@
   "homepage": "https://hyperframes.heygen.com",
   "library": "hyperframes",
   "license": "Apache-2.0",
-  "notes": "Both files are the unchanged upstream npm builds. Their integrity values here (and the pins in src/assets.rs) record the exact upstream bytes. init.js, hyperframes.css and composition.css are plugin files; autumn-web computes their URLs and SRI hashes. This file is provenance only. The plugin does not serve it.",
+  "notes": "Both files are the unchanged upstream npm builds. The npm package.json files have no license field; the Apache-2.0 license comes from the LICENSE file in each tarball (copied to LICENSES/HyperFrames-Apache-2.0.txt). Their integrity values here (and the pins in src/assets.rs) record the exact upstream bytes. init.js, hyperframes.css and composition.css are plugin files; autumn-web computes their URLs and SRI hashes. This file is provenance only. The plugin does not serve it.",
   "pinned": "latest 0.8.x as of 2026-10-08",
   "version": "0.8.140"
 }

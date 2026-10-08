@@ -2,10 +2,13 @@
  *
  * Reads the data-hf-* attributes that the Rust builders write:
  *   - data-hf-control / data-hf-target / data-hf-seek: control buttons.
+ *   - data-hf-autoplay: autoplay when motion is allowed.
  *   - data-hf-in-view: play when visible, pause when not.
  *   - data-hf-reduced="animate": play even with prefers-reduced-motion.
  * Sets data-hf-state ("playing", "paused", "ended") on each player.
  * Scans on load and on htmx:load. Stops observing on htmx:beforeCleanupElement.
+ * Set-up players are kept in a WeakSet, not in a DOM attribute, because htmx
+ * puts the DOM into its history snapshot.
  * A bad value is ignored. It does not stop the scan.
  */
 (function () {
@@ -17,6 +20,7 @@
   var RE_SEEK = /^\d+(?:\.\d{1,3})?$/;
   var doc = window.document;
   var observer = null;
+  var done = new WeakSet();
 
   function parseControl(value) {
     return typeof value === "string" && CONTROLS.indexOf(value) !== -1 ? value : null;
@@ -45,6 +49,10 @@
     return player.hasAttribute("data-hf-in-view");
   }
 
+  function wantsAutoplay(player) {
+    return player.hasAttribute("data-hf-autoplay");
+  }
+
   function isPlayer(el) {
     return !!el && typeof el.tagName === "string" && el.tagName.toLowerCase() === PLAYER;
   }
@@ -71,8 +79,9 @@
         call(player, "seek", 0);
         return call(player, "play");
       case "seek":
+        // The player pauses on seek but sends no "pause" event.
         if (seek !== null) call(player, "seek", seek);
-        return undefined;
+        return syncState(player);
       case "mute":
         player.muted = true;
         return undefined;
@@ -99,6 +108,10 @@
 
   function setState(player, state) {
     player.setAttribute("data-hf-state", state);
+  }
+
+  function syncState(player) {
+    setState(player, player.paused === false ? "playing" : "paused");
   }
 
   function onIntersect(entries) {
@@ -130,9 +143,9 @@
   }
 
   function setup(player) {
-    if (player.hasAttribute("data-hf-init")) return;
-    player.setAttribute("data-hf-init", "");
-    setState(player, player.paused === false ? "playing" : "paused");
+    if (done.has(player)) return;
+    done.add(player);
+    syncState(player);
     player.addEventListener("play", function () {
       setState(player, "playing");
     });
@@ -142,10 +155,16 @@
     player.addEventListener("ended", function () {
       setState(player, "ended");
     });
-    if (!allowsMotion(player) && player.hasAttribute("autoplay")) {
-      // The player reads autoplay at "ready", which comes later.
-      player.removeAttribute("autoplay");
-      player.setAttribute("data-hf-autoplay-blocked", "");
+    if (!allowsMotion(player)) {
+      if (wantsAutoplay(player) || player.hasAttribute("autoplay")) {
+        // A hand-written autoplay can race "ready"; data-hf-autoplay cannot.
+        player.removeAttribute("autoplay");
+        player.setAttribute("data-hf-autoplay-blocked", "");
+      }
+    } else if (wantsAutoplay(player)) {
+      // The player reads autoplay at "ready". After ready, play at once.
+      if (player.ready === true) call(player, "play");
+      else player.setAttribute("autoplay", "");
     }
     if (wantsInView(player) && allowsMotion(player)) {
       var io = getObserver();
@@ -172,8 +191,10 @@
   doc.addEventListener("htmx:load", function (event) {
     scan(eventRoot(event));
   });
+  // htmx sends this event for each removed element, so only a player needs work.
   doc.addEventListener("htmx:beforeCleanupElement", function (event) {
-    cleanup(eventRoot(event));
+    var el = eventRoot(event);
+    if (observer && isPlayer(el)) observer.unobserve(el);
   });
 
   window.AutumnHyperframes = {
@@ -183,6 +204,7 @@
     parseControl: parseControl,
     parseSeek: parseSeek,
     wantsInView: wantsInView,
+    wantsAutoplay: wantsAutoplay,
     animatesWhenReduced: animatesWhenReduced,
   };
 

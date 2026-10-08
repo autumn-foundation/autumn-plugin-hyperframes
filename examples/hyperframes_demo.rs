@@ -10,7 +10,9 @@
 //!
 //! - A composition in a player (`srcdoc` mode), with control buttons.
 //!   CSS animations in `static/css/intro.css` move the clips. The runtime seeks them.
-//! - A composition with a nested composition (`Clip::composition`) and variable values.
+//! - A composition that plays one nested composition two times (`Clip::nested`),
+//!   with variable values and a variable default.
+//! - A player with an opaque sandbox.
 //! - A muted player that plays when it is in view.
 //! - An htmx button that adds one more player. It autoplays, muted.
 //!
@@ -103,39 +105,44 @@ fn intro() -> Composition {
 }
 
 /// A nested scene. `/compositions/pricing.html` serves its template.
+///
+/// It uses only absolute starts, so it can play more than one time (S12).
 fn pricing() -> Composition {
     Composition::builder("pricing")
         .size(1280, 720)
         .duration(secs(3))
         .stylesheet(&asset_url("css/intro.css"))
         .variable(Variable::string("plan", "Free").label("Plan name"))
+        .variable(Variable::color("accent", "#f0a35e").label("Accent color"))
         .clip(
-            Clip::html("pricing-card", html! { h1 data-var-text="plan" { "Free" } })
-                .duration(secs(3))
-                .class("scene")
-                .class("rise"),
+            Clip::html(
+                "pricing-card",
+                html! { h1 class="plan" data-var-text="plan" { "Free" } },
+            )
+            .duration(secs(3))
+            .class("scene")
+            .class("rise"),
         )
         .build()
         .unwrap_or_else(|e| unreachable!("the demo composition is valid: {e}"))
 }
 
 /// A host that plays the nested scene two times with other values.
+/// The second copy keeps the default accent color.
 fn plans() -> Composition {
+    let scene = pricing();
     Composition::builder("plans")
         .size(1280, 720)
         .duration(secs(6))
         .stylesheet(&asset_url("css/intro.css"))
         .clip(
-            Clip::composition("plan-pro", "/compositions/pricing.html")
-                .composition_id("pricing")
-                .duration(secs(3))
-                .value("plan", "Pro"),
+            Clip::nested("plan-pro", "/compositions/pricing.html", &scene)
+                .value("plan", "Pro")
+                .value("accent", "#5eb0f0"),
         )
         .clip(
-            Clip::composition("plan-team", "/compositions/pricing.html")
-                .composition_id("pricing")
+            Clip::nested("plan-team", "/compositions/pricing.html", &scene)
                 .start(Start::after("plan-pro"))
-                .duration(secs(3))
                 .value("plan", "Team"),
         )
         .build()
@@ -201,6 +208,12 @@ async fn index() -> Markup {
         section id="plans-section" {
             h2 { "Nested compositions with variables" }
             (Player::composition(&plans()).id("plans-player").label("Plans video").controls())
+        }
+
+        section id="opaque-section" {
+            h2 { "Opaque sandbox" }
+            // The frame has an opaque origin. The srcdoc tags have no SRI and no CORS.
+            (Player::composition(&intro()).id("opaque-player").label("Opaque intro").opaque_sandbox())
         }
 
         section id="in-view-section" class="tall" {

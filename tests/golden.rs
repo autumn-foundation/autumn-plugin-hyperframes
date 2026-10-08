@@ -72,31 +72,36 @@ fn render_fixture() -> String {
     }
     out.push_str("  ],\n  \"players\": [\n");
     let players = [
-        (Player::src("/c"), false, None),
-        (Player::src("/c").in_view(), true, None),
+        (Player::src("/c"), false, false, None),
+        (Player::src("/c").in_view(), true, false, None),
+        (Player::src("/c").autoplay(), false, true, None),
         (
             Player::src("/c")
                 .in_view()
                 .reduced_motion(ReducedMotion::Animate),
             true,
+            false,
             Some("animate"),
         ),
         (
             Player::src("/c").reduced_motion(ReducedMotion::Skip),
             false,
+            false,
             None,
         ),
     ];
     let n = players.len();
-    for (i, (player, in_view, reduced)) in players.into_iter().enumerate() {
+    for (i, (player, in_view, autoplay, reduced)) in players.into_iter().enumerate() {
         let html = player.render().into_string();
         let in_view_attr = attr(&html, "data-hf-in-view").is_some();
+        let autoplay_attr = attr(&html, "data-hf-autoplay").is_some();
         let reduced_attr = attr(&html, "data-hf-reduced");
         assert_eq!(in_view_attr, in_view, "{html}");
+        assert_eq!(autoplay_attr, autoplay, "{html}");
         assert_eq!(reduced_attr.as_deref(), reduced, "{html}");
         let _ = writeln!(
             out,
-            "    {{ \"inView\": {in_view_attr}, \"reduced\": {}, \"expect\": {{ \"inView\": {in_view}, \"animateWhenReduced\": {} }} }}{}",
+            "    {{ \"inView\": {in_view_attr}, \"autoplay\": {autoplay_attr}, \"reduced\": {}, \"expect\": {{ \"inView\": {in_view}, \"autoplay\": {autoplay}, \"animateWhenReduced\": {} }} }}{}",
             json_str(reduced_attr.as_deref()),
             reduced == Some("animate"),
             if i + 1 < n { "," } else { "" },

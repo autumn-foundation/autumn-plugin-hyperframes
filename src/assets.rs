@@ -207,6 +207,24 @@ mod tests {
     }
 
     #[test]
+    fn init_js_version_is_the_crate_version() {
+        let line = format!("version: \"{}\",", env!("CARGO_PKG_VERSION"));
+        assert!(text(INIT_JS).contains(&line), "init.js has {line}");
+    }
+
+    #[test]
+    fn manifest_records_the_byte_sizes() {
+        let manifest = include_str!("../assets/manifest.json");
+        for path in [PLAYER_JS, RUNTIME_JS] {
+            let bytes = HYPERFRAMES_ASSETS.get(path).expect("bundled").bytes().len();
+            assert!(
+                manifest.contains(&format!("\"bytes\": {bytes},")),
+                "manifest records {bytes} bytes for {path}"
+            );
+        }
+    }
+
+    #[test]
     fn runtime_url_is_hashed() {
         let url = runtime_url();
         assert!(

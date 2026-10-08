@@ -28,13 +28,13 @@ pub enum CompositionError {
         /// The height in pixels.
         height: u32,
     },
-    /// A timeline-free composition has no duration (S4).
+    /// A composition without a timeline has no duration (S4).
     #[error("the composition `{id}` has no timeline, so it needs a duration")]
     MissingDuration {
         /// The composition id.
         id: String,
     },
-    /// A duration is less than one millisecond (S4).
+    /// A duration rounds to less than 1 ms (S4).
     #[error("the duration of `{id}` is less than 1 ms")]
     ZeroDuration {
         /// The composition or clip id.
@@ -84,7 +84,7 @@ pub enum CompositionError {
         /// The bad rate.
         rate: f64,
     },
-    /// A URL is empty or can run script (S8).
+    /// A URL is empty or its scheme is not on the allowlist for its use (S8).
     #[error("the URL `{url}` of `{owner}` is empty or not safe")]
     UnsafeUrl {
         /// The composition or clip id.

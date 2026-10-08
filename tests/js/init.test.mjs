@@ -80,6 +80,7 @@ class FakePlayer extends FakeElement {
     super("hyperframes-player", attrs);
     this.paused = true;
     this.muted = false;
+    this.ready = false;
     this.currentTime = 0;
     this.calls = [];
   }
@@ -94,20 +95,24 @@ class FakePlayer extends FakeElement {
     this.paused = true;
     this.dispatch("pause");
   }
+  // Upstream seek() pauses without a "pause" event.
   seek(t) {
     this.calls.push(`seek:${t}`);
     this.currentTime = t;
+    this.paused = true;
   }
 }
 
-function setup({ reduced = false, observer = true } = {}) {
+function setup({ reduced = false, observer = true, readyState = "complete", before = [] } = {}) {
   const body = new FakeElement("body");
+  body.append(...before);
   const listeners = {};
   const observed = new Set();
+  const unobservedLog = [];
   let intersect = null;
   const document = {
     body,
-    readyState: "complete",
+    readyState,
     addEventListener(type, fn) {
       (listeners[type] ||= []).push(fn);
     },
@@ -136,6 +141,7 @@ function setup({ reduced = false, observer = true } = {}) {
         observed.add(el);
       }
       unobserve(el) {
+        unobservedLog.push(el);
         observed.delete(el);
       }
     };
@@ -149,6 +155,7 @@ function setup({ reduced = false, observer = true } = {}) {
     api: window.AutumnHyperframes,
     body,
     observed,
+    unobserved: () => [...unobservedLog],
     fire,
     intersect: (entries) => intersect(entries),
     click: (el) => fire("click", { target: el }),
@@ -170,8 +177,10 @@ test("reads every player flag that Rust writes (golden)", () => {
   for (const p of FIXTURE.players) {
     const el = new FakePlayer({});
     if (p.inView) el.setAttribute("data-hf-in-view", "");
+    if (p.autoplay) el.setAttribute("data-hf-autoplay", "");
     if (p.reduced !== null) el.setAttribute("data-hf-reduced", p.reduced);
     assert.equal(api.wantsInView(el), p.expect.inView);
+    assert.equal(api.wantsAutoplay(el), p.expect.autoplay);
     assert.equal(api.animatesWhenReduced(el), p.expect.animateWhenReduced);
   }
 });
@@ -224,6 +233,30 @@ test("seek uses data-hf-seek", () => {
   assert.deepEqual(env.player.calls, ["seek:2.5"]);
 });
 
+test("seek updates data-hf-state (upstream seek pauses without an event)", () => {
+  const env = page();
+  env.player.play();
+  assert.equal(env.player.getAttribute("data-hf-state"), "playing");
+  env.click(button(env, "seek", { "data-hf-seek": "1" }).b);
+  assert.equal(env.player.getAttribute("data-hf-state"), "paused");
+  env.click(button(env, "restart").b);
+  assert.equal(env.player.getAttribute("data-hf-state"), "playing");
+});
+
+test("a rejected play() promise does not stop later clicks", async () => {
+  const env = page();
+  let rejected = 0;
+  env.player.play = () => {
+    rejected += 1;
+    return Promise.reject(new Error("blocked"));
+  };
+  env.click(button(env, "play").b);
+  env.click(button(env, "pause").b);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(rejected, 1);
+  assert.deepEqual(env.player.calls, ["pause"]);
+});
+
 test("mute, unmute and toggle-mute set muted", () => {
   const env = page();
   env.click(button(env, "mute").b);
@@ -262,16 +295,27 @@ test("a throwing player method does not stop later clicks", () => {
 
 // ---- Scan: state, reduced motion, in view -----------------------------------------
 
-test("scan marks players and tracks data-hf-state", () => {
+test("scan tracks data-hf-state and leaves no marker in the DOM", () => {
   const env = page();
   assert.equal(env.player.getAttribute("data-hf-state"), "paused");
-  assert.equal(env.player.hasAttribute("data-hf-init"), true);
+  // A DOM marker would go into the htmx history snapshot.
+  assert.equal([...env.player.attrs.keys()].some((k) => k.endsWith("-init")), false);
   env.player.play();
   assert.equal(env.player.getAttribute("data-hf-state"), "playing");
   env.player.dispatch("ended");
   assert.equal(env.player.getAttribute("data-hf-state"), "ended");
   env.player.pause();
   assert.equal(env.player.getAttribute("data-hf-state"), "paused");
+});
+
+test("a player restored from htmx history is set up again", () => {
+  const env = setup();
+  // The snapshot keeps the attributes of the old page.
+  const p = new FakePlayer({ id: "p", "data-hf-state": "playing", "data-hf-init": "" });
+  env.body.append(p);
+  env.fire("htmx:load", { detail: { elt: p }, target: p });
+  assert.equal(p.getAttribute("data-hf-state"), "paused");
+  assert.equal(p.listeners.play.length, 1);
 });
 
 test("scan runs one time for each player", () => {
@@ -281,23 +325,30 @@ test("scan runs one time for each player", () => {
   assert.equal(env.player.listeners.play.length, 1);
 });
 
-test("reduced motion removes autoplay", () => {
+test("reduced motion blocks data-hf-autoplay and a hand-written autoplay", () => {
   const env = setup({ reduced: true });
-  const p = new FakePlayer({ id: "p", autoplay: "" });
-  const q = new FakePlayer({ id: "q", autoplay: "", "data-hf-reduced": "animate" });
-  env.body.append(p, q);
+  const p = new FakePlayer({ id: "p", "data-hf-autoplay": "" });
+  const q = new FakePlayer({ id: "q", "data-hf-autoplay": "", "data-hf-reduced": "animate" });
+  const r = new FakePlayer({ id: "r", autoplay: "" });
+  env.body.append(p, q, r);
   env.api.scan(env.body);
   assert.equal(p.hasAttribute("autoplay"), false);
   assert.equal(p.hasAttribute("data-hf-autoplay-blocked"), true);
   assert.equal(q.hasAttribute("autoplay"), true);
+  assert.equal(r.hasAttribute("autoplay"), false);
+  assert.equal(r.hasAttribute("data-hf-autoplay-blocked"), true);
 });
 
-test("autoplay stays without reduced motion", () => {
+test("data-hf-autoplay adds autoplay before ready and plays after ready", () => {
   const env = setup();
-  const p = new FakePlayer({ id: "p", autoplay: "" });
-  env.body.append(p);
+  const early = new FakePlayer({ id: "a", "data-hf-autoplay": "" });
+  const late = new FakePlayer({ id: "b", "data-hf-autoplay": "" });
+  late.ready = true;
+  env.body.append(early, late);
   env.api.scan(env.body);
-  assert.equal(p.hasAttribute("autoplay"), true);
+  assert.equal(early.hasAttribute("autoplay"), true);
+  assert.deepEqual(early.calls, []);
+  assert.deepEqual(late.calls, ["play"]);
 });
 
 test("in-view players play when visible and pause when not", () => {
@@ -327,7 +378,8 @@ test("in-view does nothing without IntersectionObserver", () => {
   const p = new FakePlayer({ id: "p", "data-hf-in-view": "" });
   env.body.append(p);
   env.api.scan(env.body);
-  assert.equal(p.getAttribute("data-hf-state"), "paused");
+  env.api.cleanup(env.body);
+  assert.deepEqual(p.calls, []);
 });
 
 // ---- htmx ---------------------------------------------------------------------------
@@ -339,22 +391,46 @@ test("htmx:load scans new content", () => {
   wrap.append(p);
   env.body.append(wrap);
   env.fire("htmx:load", { detail: { elt: wrap }, target: wrap });
-  assert.equal(p.hasAttribute("data-hf-init"), true);
+  assert.equal(p.getAttribute("data-hf-state"), "paused");
   assert.equal(p.hasAttribute("autoplay"), false);
 });
 
-test("htmx:beforeCleanupElement stops observing removed players", () => {
+test("htmx:beforeCleanupElement unobserves the player it names", () => {
   const env = setup();
+  const wrap = new FakeElement("div");
   const p = new FakePlayer({ id: "p", "data-hf-in-view": "" });
-  env.body.append(p);
+  wrap.append(p);
+  env.body.append(wrap);
   env.api.scan(env.body);
+  // htmx fires the event on each removed element, so a wrapper does no work.
+  env.fire("htmx:beforeCleanupElement", { detail: { elt: wrap }, target: wrap });
+  assert.deepEqual(env.unobserved(), []);
   env.fire("htmx:beforeCleanupElement", { detail: { elt: p }, target: p });
-  assert.equal(env.observed.has(p), false);
+  assert.deepEqual(env.unobserved(), [p]);
   env.fire("htmx:beforeCleanupElement", { target: null });
 });
 
-test("the initial scan runs on load", () => {
-  // readyState is "complete", so init.js scans at once.
+test("cleanup(root) unobserves every player in the subtree", () => {
   const env = setup();
-  assert.equal(typeof env.api.version, "string");
+  const wrap = new FakeElement("div");
+  const p = new FakePlayer({ id: "p", "data-hf-in-view": "" });
+  wrap.append(p);
+  env.body.append(wrap);
+  env.api.scan(env.body);
+  env.api.cleanup(wrap);
+  assert.deepEqual(env.unobserved(), [p]);
+});
+
+test("the initial scan runs at once when the page is parsed", () => {
+  const p = new FakePlayer({ id: "p" });
+  setup({ before: [p] });
+  assert.equal(p.getAttribute("data-hf-state"), "paused");
+});
+
+test("the initial scan waits for DOMContentLoaded while the page loads", () => {
+  const p = new FakePlayer({ id: "p" });
+  const env = setup({ readyState: "loading", before: [p] });
+  assert.equal(p.getAttribute("data-hf-state"), null);
+  env.fire("DOMContentLoaded", {});
+  assert.equal(p.getAttribute("data-hf-state"), "paused");
 });

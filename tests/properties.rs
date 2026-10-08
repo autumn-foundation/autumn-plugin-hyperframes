@@ -34,6 +34,27 @@ proptest! {
         }
     }
 
+    // S1 at the edges: one bad character, a bad first character or one
+    // character too many turns a valid id into InvalidId.
+    #[test]
+    fn s1_one_change_breaks_a_valid_id(
+        id in "[A-Za-z][A-Za-z0-9_-]{0,126}",
+        bad in prop::sample::select(vec![' ', '.', ':', '+', '/', '"', '<', 'é']),
+        first in prop::sample::select(vec!['0', '9', '-', '_']),
+    ) {
+        let cases = [
+            format!("{id}{bad}"),
+            format!("{first}{id}"),
+            format!("{id}{}", "a".repeat(129 - id.len())),
+        ];
+        for case in cases {
+            let err = Composition::builder(&case).duration(ms(1000)).build().expect_err("invalid");
+            let expected = CompositionError::InvalidId { id: case.clone() };
+            prop_assert!(err.errors().contains(&expected), "{:?}", err);
+        }
+        prop_assert!(Composition::builder(&id).duration(ms(1000)).build().is_ok());
+    }
+
     // S2: the number of DuplicateId errors is the number of repeats.
     #[test]
     fn s2_duplicates_are_counted(picks in prop::collection::vec(0usize..5, 1..12)) {

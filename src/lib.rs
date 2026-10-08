@@ -87,3 +87,8 @@ pub use plugin::{HyperframesPlugin, PLUGIN_NAME};
 pub use script::{hyperframes_script, hyperframes_stylesheet};
 pub use time::Start;
 pub use variable::{Variable, VariableValue};
+
+/// The README examples compile and run as doc tests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;

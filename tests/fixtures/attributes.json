@@ -13,10 +13,11 @@
     { "control": "seek", "seek": "3600", "expect": { "control": "seek", "seek": 3600 } }
   ],
   "players": [
-    { "inView": false, "reduced": null, "expect": { "inView": false, "animateWhenReduced": false } },
-    { "inView": true, "reduced": null, "expect": { "inView": true, "animateWhenReduced": false } },
-    { "inView": true, "reduced": "animate", "expect": { "inView": true, "animateWhenReduced": true } },
-    { "inView": false, "reduced": null, "expect": { "inView": false, "animateWhenReduced": false } }
+    { "inView": false, "autoplay": false, "reduced": null, "expect": { "inView": false, "autoplay": false, "animateWhenReduced": false } },
+    { "inView": true, "autoplay": false, "reduced": null, "expect": { "inView": true, "autoplay": false, "animateWhenReduced": false } },
+    { "inView": false, "autoplay": true, "reduced": null, "expect": { "inView": false, "autoplay": true, "animateWhenReduced": false } },
+    { "inView": true, "autoplay": false, "reduced": "animate", "expect": { "inView": true, "autoplay": false, "animateWhenReduced": true } },
+    { "inView": false, "autoplay": false, "reduced": null, "expect": { "inView": false, "autoplay": false, "animateWhenReduced": false } }
   ],
   "invalid": {
     "controls": ["", "PLAY", "stop", "seek ", "toggle_mute"],

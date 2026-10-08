@@ -26,6 +26,34 @@ const SANDBOX_WARNING = /allow-scripts and allow-same-origin/;
 
 const servers = [];
 let browser;
+// The coverage gate needs every test. A failure or a name filter skips it.
+let failures = 0;
+const filtered = process.execArgv.concat(process.argv).some((a) => a.includes("test-name-pattern"));
+
+// `test`, but it counts failures for the coverage gate.
+function it(name, fn) {
+  return test(name, async () => {
+    try {
+      await fn();
+    } catch (e) {
+      failures += 1;
+      throw e;
+    }
+  });
+}
+
+// Retries `fn` until it stops throwing, or throws its last error after `ms`.
+async function eventually(fn, ms = 5000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (Date.now() > end) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
 
 // Asks the OS for a free port.
 function freePort() {
@@ -138,6 +166,16 @@ async function open(base, path = "/", options = {}) {
     document.addEventListener("securitypolicyviolation", (e) => {
       window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`);
     });
+    // Record the targets that init.js stops observing.
+    window.__unobserved = [];
+    const io = window.IntersectionObserver && window.IntersectionObserver.prototype;
+    if (io) {
+      const unobserve = io.unobserve;
+      io.unobserve = function (el) {
+        window.__unobserved.push(el.id);
+        return unobserve.call(this, el);
+      };
+    }
   });
   await page.goto(base + path);
   return { page, context, errors, foreign };
@@ -146,11 +184,26 @@ async function open(base, path = "/", options = {}) {
 const ready = (page, id, timeout = 10000) =>
   page.waitForFunction((i) => document.getElementById(i)?.ready === true, id, { timeout });
 
-// Seeks a player and waits for the frame to settle.
+// Seeks a player, then waits for the time and two frames in the iframe.
 async function seek(page, id, t) {
-  await page.evaluate(([i, s]) => document.getElementById(i).seek(s), [id, t]);
-  await page.waitForTimeout(250);
+  await page.evaluate(
+    async ([i, s]) => {
+      const p = document.getElementById(i);
+      p.seek(s);
+      const end = performance.now() + 5000;
+      while (Math.abs(p.currentTime - s) > 0.05 && performance.now() < end) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const w = p.iframeElement.contentWindow;
+      await new Promise((r) => w.requestAnimationFrame(() => w.requestAnimationFrame(r)));
+    },
+    [id, t],
+  );
 }
+
+// Waits until the player has loaded its assets, so a queued autoplay would have started.
+const settled = (page, id) =>
+  page.waitForFunction((i) => document.getElementById(i)?.assetsReady === true, id, { timeout: 10000 });
 
 // The computed visibility of clip `clip` inside player `id`.
 const visibility = (page, id, clip) =>
@@ -182,9 +235,11 @@ let frameUrl;
 before(async () => {
   assert.ok(existsSync(BIN), `build the demo first: cargo build --example hyperframes_demo (${BIN})`);
   url = await startServer();
+  // This server also has no CORS for the null origin (as in production).
   frameUrl = await startServer({
     AUTUMN_SECURITY__HEADERS__X_FRAME_OPTIONS: "SAMEORIGIN",
     AUTUMN_SECURITY__HEADERS__CONTENT_SECURITY_POLICY: FRAME_SELF_CSP,
+    AUTUMN_CORS__ALLOWED_ORIGINS: "https://example.com",
   });
   browser = await chromium.launch(
     process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {},
@@ -194,6 +249,10 @@ before(async () => {
 after(async () => {
   await browser?.close();
   for (const s of servers) s.kill();
+  if (failures > 0 || filtered) {
+    console.log("# init.js coverage gate skipped: not a full, green run");
+    return;
+  }
   assert.ok(coverage.source, "the e2e run loaded init.js");
   const { code, hit, pct } = lineCoverage();
   console.log(`# init.js line coverage: ${pct.toFixed(1)}% (${hit}/${code})`);
@@ -201,9 +260,11 @@ after(async () => {
 });
 
 describe("default CSP, srcdoc mode", () => {
-  test("every player gets ready with no errors and no other origin", async () => {
+  it("every player gets ready with no errors and no other origin", async () => {
     const { page, context, errors, foreign } = await open(url);
-    for (const id of ["intro-player", "plans-player", "in-view-player"]) await ready(page, id);
+    for (const id of ["intro-player", "plans-player", "opaque-player", "in-view-player"]) {
+      await ready(page, id);
+    }
     assert.deepEqual((await player(page, "intro-player")).duration, 6);
     assert.deepEqual((await player(page, "plans-player")).duration, 6);
     assert.deepEqual((await player(page, "in-view-player")).duration, 3);
@@ -213,7 +274,7 @@ describe("default CSP, srcdoc mode", () => {
     await context.close();
   });
 
-  test("the player loads the vendored runtime from runtime-src", async () => {
+  it("the srcdoc loads the vendored runtime one time", async () => {
     const { page, context } = await open(url);
     await ready(page, "intro-player");
     const scripts = await page.evaluate(() =>
@@ -222,11 +283,12 @@ describe("default CSP, srcdoc mode", () => {
       ),
     );
     assert.equal(scripts.length, 1, JSON.stringify(scripts));
-    assert.match(scripts[0], /^\/static\/_plugins\/hyperframes\/hyperframe\.runtime\.iife\.[0-9a-f]{8}\.js$/);
+    // The srcdoc links the plain URL, so the player adds no second copy.
+    assert.equal(scripts[0], "/static/_plugins/hyperframes/hyperframe.runtime.iife.js");
     await context.close();
   });
 
-  test("clips show only in their time window", async () => {
+  it("clips show only in their time window", async () => {
     const { page, context } = await open(url);
     await ready(page, "intro-player");
     const at = async (t) => {
@@ -237,15 +299,16 @@ describe("default CSP, srcdoc mode", () => {
       }
       return out;
     };
-    assert.deepEqual(await at(0.5), { title: "visible", tagline: "hidden", logo: "hidden", outro: "hidden" });
+    const expect = (t, want) => eventually(async () => assert.deepEqual(await at(t), want));
+    await expect(0.5, { title: "visible", tagline: "hidden", logo: "hidden", outro: "hidden" });
     // `logo` starts 0.5 s before `title` ends (Start::after("title").minus(500 ms)).
-    assert.deepEqual(await at(1.75), { title: "visible", tagline: "hidden", logo: "visible", outro: "hidden" });
-    assert.deepEqual(await at(2.5), { title: "hidden", tagline: "visible", logo: "visible", outro: "hidden" });
-    assert.deepEqual(await at(4.5), { title: "hidden", tagline: "hidden", logo: "hidden", outro: "visible" });
+    await expect(1.75, { title: "visible", tagline: "hidden", logo: "visible", outro: "hidden" });
+    await expect(2.5, { title: "hidden", tagline: "visible", logo: "visible", outro: "hidden" });
+    await expect(4.5, { title: "hidden", tagline: "hidden", logo: "hidden", outro: "visible" });
     await context.close();
   });
 
-  test("the runtime seeks CSS animations from the composition stylesheet", async () => {
+  it("the runtime seeks CSS animations from the composition stylesheet", async () => {
     const { page, context } = await open(url);
     await ready(page, "intro-player");
     const opacity = async (t) => {
@@ -255,14 +318,16 @@ describe("default CSP, srcdoc mode", () => {
         return Number(d.defaultView.getComputedStyle(d.querySelector("#title h1")).opacity);
       });
     };
-    assert.equal(await opacity(0), 0);
-    const mid = await opacity(0.4);
-    assert.ok(mid > 0 && mid < 1, `mid-animation opacity ${mid}`);
-    assert.equal(await opacity(1.5), 1);
+    await eventually(async () => assert.equal(await opacity(0), 0));
+    await eventually(async () => {
+      const mid = await opacity(0.4);
+      assert.ok(mid > 0 && mid < 1, `mid-animation opacity ${mid}`);
+    });
+    await eventually(async () => assert.equal(await opacity(1.5), 1));
     await context.close();
   });
 
-  test("nested compositions play with their own variable values", async () => {
+  it("nested compositions play with their own values and defaults", async () => {
     const { page, context } = await open(url);
     await ready(page, "plans-player");
     const shown = async (t) => {
@@ -271,15 +336,16 @@ describe("default CSP, srcdoc mode", () => {
         const d = document.getElementById("plans-player").iframeElement.contentDocument;
         return Array.from(d.querySelectorAll("h1"))
           .filter((h) => d.defaultView.getComputedStyle(h.closest("[data-start]")).visibility === "visible")
-          .map((h) => h.textContent);
+          .map((h) => `${h.textContent} ${d.defaultView.getComputedStyle(h).color}`);
       });
     };
-    assert.deepEqual(await shown(1), ["Pro"]);
-    assert.deepEqual(await shown(4), ["Team"]);
+    // "Pro" sets its own accent. "Team" keeps the default from the template <html>.
+    await eventually(async () => assert.deepEqual(await shown(1), ["Pro rgb(94, 176, 240)"]));
+    await eventually(async () => assert.deepEqual(await shown(4), ["Team rgb(240, 163, 94)"]));
     await context.close();
   });
 
-  test("control buttons drive the player and data-hf-state follows", async () => {
+  it("control buttons drive the player and data-hf-state follows", async () => {
     const { page, context, errors } = await open(url);
     await ready(page, "intro-player");
     const btn = (c) => `[data-hf-target="intro-player"][data-hf-control="${c}"]`;
@@ -287,8 +353,12 @@ describe("default CSP, srcdoc mode", () => {
     await page.waitForFunction(() => document.getElementById("intro-player").getAttribute("data-hf-state") === "playing");
     await page.click(btn("pause"));
     await page.waitForFunction(() => document.getElementById("intro-player").getAttribute("data-hf-state") === "paused");
+    await page.click(btn("play"));
+    await page.waitForFunction(() => document.getElementById("intro-player").getAttribute("data-hf-state") === "playing");
+    // Seek pauses the player. init.js updates the state.
     await page.click(btn("seek"));
     await page.waitForFunction(() => Math.abs(document.getElementById("intro-player").currentTime - 2.5) < 0.05);
+    await page.waitForFunction(() => document.getElementById("intro-player").getAttribute("data-hf-state") === "paused");
     await page.click(btn("toggle-mute"));
     assert.equal((await player(page, "intro-player")).muted, true);
     await page.click(btn("restart"));
@@ -298,7 +368,7 @@ describe("default CSP, srcdoc mode", () => {
     await context.close();
   });
 
-  test("an in-view player plays when visible and pauses when not", async () => {
+  it("an in-view player plays when visible and pauses when not", async () => {
     const { page, context } = await open(url);
     await ready(page, "in-view-player");
     assert.equal((await player(page, "in-view-player")).paused, true);
@@ -309,7 +379,7 @@ describe("default CSP, srcdoc mode", () => {
     await context.close();
   });
 
-  test("htmx adds a player that gets ready, autoplays and takes controls", async () => {
+  it("htmx adds a player that gets ready, autoplays and takes controls", async () => {
     const { page, context, errors } = await open(url);
     await page.waitForFunction(() => window.htmx && window.AutumnHyperframes);
     await page.click("#more");
@@ -318,7 +388,11 @@ describe("default CSP, srcdoc mode", () => {
     await ready(page, pid);
     const info = await player(page, pid);
     assert.equal(info.duration, 3);
-    assert.equal(info.autoplay, true);
+    assert.equal(
+      await page.evaluate((i) => document.getElementById(i).hasAttribute("data-hf-autoplay"), pid),
+      true,
+    );
+    // init.js adds `autoplay` before ready, or plays after ready.
     await page.waitForFunction((i) => !document.getElementById(i).paused, pid);
     await page.evaluate((i) => document.getElementById(i).pause(), pid);
     await page.click(`[data-hf-target="${pid}"]`);
@@ -327,32 +401,38 @@ describe("default CSP, srcdoc mode", () => {
     await context.close();
   });
 
-  test("htmx cleanup stops observing a removed in-view player", async () => {
+  it("htmx cleanup stops observing a removed in-view player", async () => {
     const { page, context, errors } = await open(url);
     await ready(page, "in-view-player");
-    await page.evaluate(() => {
-      const p = document.getElementById("in-view-player");
-      window.htmx.trigger(p, "htmx:beforeCleanupElement", { elt: p });
-      p.remove();
-    });
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(300);
+    await page.waitForFunction(() => window.htmx && window.AutumnHyperframes);
+    // htmx runs the cleanup when it swaps the section out.
+    await page.evaluate(() => window.htmx.swap("#in-view-section", "<p>gone</p>", { swapStyle: "outerHTML" }));
+    await page.waitForFunction(() => !document.getElementById("in-view-player"));
+    assert.ok(
+      (await page.evaluate(() => window.__unobserved)).includes("in-view-player"),
+      "init.js unobserved the removed player",
+    );
     assert.deepEqual(errors, []);
     await context.close();
   });
 
-  test("the opaque sandbox still plays a srcdoc composition", async () => {
-    const { page, context } = await open(url);
-    await ready(page, "intro-player");
-    await page.evaluate(() => document.getElementById("intro-player").setAttribute("sandbox-origin", "opaque"));
-    await page.waitForFunction(() => {
-      const p = document.getElementById("intro-player");
-      return p.ready && p.duration === 6 && p.iframeElement.getAttribute("sandbox").indexOf("allow-same-origin") === -1;
-    });
+  it("the opaque sandbox plays a srcdoc composition with no CORS errors", async () => {
+    // frameUrl sends no CORS headers for the null origin, as in production.
+    const { page, context, errors } = await open(frameUrl);
+    await ready(page, "opaque-player");
+    assert.equal((await player(page, "opaque-player")).duration, 6);
+    assert.equal(
+      await page.evaluate(() =>
+        document.getElementById("opaque-player").iframeElement.getAttribute("sandbox").includes("allow-same-origin"),
+      ),
+      false,
+    );
+    await settled(page, "opaque-player");
+    assert.deepEqual(errors, []);
     await context.close();
   });
 
-  test("a composition page works on its own", async () => {
+  it("a composition page works on its own", async () => {
     const { page, context, errors, foreign } = await open(url, "/compositions/intro");
     await page.waitForFunction(() => typeof window.__hyperframes === "object");
     const root = await page.evaluate(() => {
@@ -367,20 +447,21 @@ describe("default CSP, srcdoc mode", () => {
 });
 
 describe("reduced motion", () => {
-  test("no autoplay and no in-view play", async () => {
+  it("no autoplay and no in-view play", async () => {
     const { page, context, errors } = await open(url, "/", { reducedMotion: "reduce" });
     await ready(page, "in-view-player");
     await page.locator("#in-view-player").scrollIntoViewIfNeeded();
-    await page.waitForTimeout(1200);
+    await settled(page, "in-view-player");
+    await page.waitForTimeout(500);
     assert.equal((await player(page, "in-view-player")).paused, true);
     await page.waitForFunction(() => window.htmx && window.AutumnHyperframes);
     await page.click("#more");
     const id = await page.waitForFunction(() => document.querySelector("#cards hyperframes-player")?.id);
     const pid = await id.jsonValue();
     await ready(page, pid);
-    await page.waitForTimeout(800);
+    await settled(page, pid);
     const info = await player(page, pid);
-    assert.equal(info.autoplay, false, "init.js removed autoplay");
+    assert.equal(info.autoplay, false, "init.js did not add autoplay");
     assert.equal(info.paused, true);
     assert.equal(
       await page.evaluate((i) => document.getElementById(i).hasAttribute("data-hf-autoplay-blocked"), pid),
@@ -395,25 +476,28 @@ describe("reduced motion", () => {
 });
 
 describe("src mode", () => {
-  test("plays a composition URL when the app allows same-origin frames", async () => {
+  it("plays a composition URL when the app allows same-origin frames", async () => {
     const { page, context, errors, foreign } = await open(frameUrl, "/src-mode");
     await ready(page, "src-player");
     assert.equal((await player(page, "src-player")).duration, 6);
-    await seek(page, "src-player", 2.5);
-    assert.equal(await visibility(page, "src-player", "tagline"), "visible");
+    await eventually(async () => {
+      await seek(page, "src-player", 2.5);
+      assert.equal(await visibility(page, "src-player", "tagline"), "visible");
+    });
     assert.deepEqual(errors, []);
     assert.deepEqual(foreign, []);
     await context.close();
   });
 
-  test("the Autumn default headers block the frame", async () => {
+  it("the Autumn default headers block the frame", async () => {
     const { page, context, errors } = await open(url, "/src-mode");
-    await page.waitForTimeout(2000);
+    await eventually(() =>
+      assert.ok(
+        errors.some((e) => e.includes("frame-ancestors")),
+        `expected a frame-ancestors error: ${JSON.stringify(errors)}`,
+      ),
+    10000);
     assert.equal((await player(page, "src-player")).ready, false);
-    assert.ok(
-      errors.some((e) => e.includes("frame-ancestors")),
-      `expected a frame-ancestors error: ${JSON.stringify(errors)}`,
-    );
     await context.close();
   });
 });

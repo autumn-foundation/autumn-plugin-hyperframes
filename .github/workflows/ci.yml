@@ -35,6 +35,8 @@ jobs:
       - run: cargo doc --locked --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+      - name: The crate packages with all embedded assets
+        run: cargo package --locked
       - name: The plugin does not turn on embed-assets for the host app
         run: |
           if cargo tree --locked -e normal,features -i autumn-web | grep -q embed-assets; then

@@ -6,8 +6,9 @@ use crate::assets::{HOST_CSS, HYPERFRAMES_ASSETS, INIT_JS, PLAYER_JS};
 
 /// Renders the `<script>` tags for the player and the plugin scanner.
 ///
-/// Put it in `<head>`. The tags are deferred, so they run in order after the
-/// parser: first the player (it defines `<hyperframes-player>`), then `init.js`.
+/// Put it in `<head>`. The tags have `defer`. They run in order after the
+/// browser parses the page: first the player (it defines
+/// `<hyperframes-player>`), then `init.js`.
 /// Each tag has a hashed URL and an SRI hash.
 ///
 /// The host page does not load the HyperFrames runtime. Only compositions load it.

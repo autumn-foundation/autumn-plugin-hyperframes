@@ -12,7 +12,7 @@ use crate::clip::{AnyClip, Clip, ClipKind, VideoAudio};
 use crate::error::{BuildError, CompositionError};
 use crate::id::{Id, is_valid_id};
 use crate::time::{StartKind, millis, seconds, start_attr};
-use crate::url::is_safe_url;
+use crate::url::{UrlUse, is_safe_url};
 use crate::variable::{Variable, VariableKind, VariableValue};
 
 /// The default composition width in pixels.
@@ -52,11 +52,12 @@ pub struct CompositionBuilder {
 /// A checked HyperFrames composition.
 ///
 /// Only [`CompositionBuilder::build`] makes one, so every `Composition`
-/// obeys the rules S1 to S10 in `docs/plan.md`. It renders in three forms:
+/// obeys the build rules. It renders in four forms:
 ///
 /// - [`document`](Self::document): a full page. Serve it at a URL.
 /// - [`template`](Self::template): a `<template>` file for a nested composition.
 /// - [`fragment`](Self::fragment): the root element only.
+/// - [`srcdoc_html`](Self::srcdoc_html): the page for a player `srcdoc`.
 ///
 /// [`Player::composition`](crate::Player::composition) embeds it in a page.
 ///
@@ -163,6 +164,16 @@ impl Composition {
             .map_or((None, None), |i| self.timing[i])
     }
 
+    /// True when a clip uses [`Start::after`](crate::Start::after).
+    pub(crate) fn has_relative_starts(&self) -> bool {
+        self.clips.iter().any(|c| c.start.reference().is_some())
+    }
+
+    /// True when the composition registers no timeline (`data-no-timeline`).
+    pub(crate) const fn is_timeline_free(&self) -> bool {
+        !self.timeline
+    }
+
     /// Renders the root element and its clips.
     ///
     /// The root carries `data-composition-variables` when the composition
@@ -175,28 +186,36 @@ impl Composition {
     /// Renders a full HTML page that loads the runtime.
     ///
     /// Serve it from a route, then play it with [`Player::src`](crate::Player::src).
-    /// The page links the composition stylesheet and the runtime with SRI.
-    /// Your stylesheets go in `<head>`. Your scripts run at the end of `<body>`.
+    /// The HyperFrames CLI can render it. The page links the composition
+    /// stylesheet and the runtime with SRI. Your stylesheets go in `<head>`.
+    /// Your scripts run at the end of `<body>`.
     #[must_use]
     pub fn document(&self) -> Markup {
-        self.page(true)
+        self.page(Page::Document)
     }
 
-    /// Renders a `<template>` file for use as a nested composition.
+    /// Renders the file for a nested composition.
     ///
-    /// Serve it from a route and point [`Clip::composition`] at the URL. The
-    /// parent page loads the runtime, so the template does not.
+    /// Serve it from a route and point [`Clip::nested`] at the URL. The file is
+    /// a page with one `<template>`. The `<html>` element has the variable
+    /// declarations, because the runtime reads nested defaults from there.
+    /// The parent page loads the runtime, so this file does not.
     #[must_use]
     pub fn template(&self) -> Markup {
         html! {
-            template id=(format!("{}-template", self.id)) {
-                (HYPERFRAMES_ASSETS.stylesheet_tag(COMPOSITION_CSS))
-                @for href in &self.stylesheets {
-                    link rel="stylesheet" href=(href);
-                }
-                (self.root(true, false))
-                @for src in &self.scripts {
-                    script src=(src) {}
+            (maud::DOCTYPE)
+            html data-composition-variables=[self.variables_json()] {
+                body {
+                    template id=(format!("{}-template", self.id)) {
+                        (HYPERFRAMES_ASSETS.stylesheet_tag(COMPOSITION_CSS))
+                        @for href in &self.stylesheets {
+                            link rel="stylesheet" href=(href);
+                        }
+                        (self.root(true, false))
+                        @for src in &self.scripts {
+                            script src=(src) {}
+                        }
+                    }
                 }
             }
         }
@@ -204,14 +223,22 @@ impl Composition {
 
     /// The page HTML for a player `srcdoc`.
     ///
-    /// It is [`document`](Self::document) without the runtime tag: the player
-    /// puts the runtime from its `runtime-src` attribute into the page.
+    /// It links the runtime by its plain URL with SRI. The player sees the
+    /// runtime in the page, so it does not add a second copy.
     #[must_use]
     pub fn srcdoc_html(&self) -> String {
-        self.page(false).into_string()
+        self.page(Page::Srcdoc).into_string()
     }
 
-    fn page(&self, with_runtime: bool) -> Markup {
+    /// The `srcdoc` HTML for a player with an opaque sandbox.
+    ///
+    /// An opaque frame cannot pass CORS or SRI checks for the plugin files,
+    /// so the tags have no `integrity` and no `crossorigin`.
+    pub(crate) fn srcdoc_html_opaque(&self) -> String {
+        self.page(Page::SrcdocOpaque).into_string()
+    }
+
+    fn page(&self, page: Page) -> Markup {
         let title = self.title.as_deref().unwrap_or_else(|| self.id.as_str());
         html! {
             (maud::DOCTYPE)
@@ -220,12 +247,9 @@ impl Composition {
                     meta charset="utf-8";
                     meta name="viewport" content=(format!("width={}, height={}", self.width, self.height));
                     title { (title) }
-                    (HYPERFRAMES_ASSETS.stylesheet_tag(COMPOSITION_CSS))
+                    (plugin_tags(page))
                     @for href in &self.stylesheets {
                         link rel="stylesheet" href=(href);
-                    }
-                    @if with_runtime {
-                        (HYPERFRAMES_ASSETS.script_tag(RUNTIME_JS))
                     }
                 }
                 body {
@@ -269,6 +293,40 @@ impl Composition {
         let declarations: Vec<BTreeMap<&str, Value>> =
             self.variables.iter().map(declaration).collect();
         serde_json::to_string(&declarations).ok()
+    }
+}
+
+/// The page forms of a composition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Page {
+    /// A served page: hashed runtime URL with SRI.
+    Document,
+    /// A `srcdoc`: the plain runtime URL with SRI. The player looks for
+    /// `hyperframe.runtime.iife.js` in the HTML and then adds no copy.
+    Srcdoc,
+    /// A `srcdoc` in an opaque frame: no SRI and no CORS attributes.
+    SrcdocOpaque,
+}
+
+/// The composition stylesheet and runtime tags for `page`.
+fn plugin_tags(page: Page) -> Markup {
+    let css = HYPERFRAMES_ASSETS.get(COMPOSITION_CSS);
+    let runtime = HYPERFRAMES_ASSETS.get(RUNTIME_JS);
+    match (page, css, runtime) {
+        (Page::Document, _, _) => html! {
+            (HYPERFRAMES_ASSETS.stylesheet_tag(COMPOSITION_CSS))
+            (HYPERFRAMES_ASSETS.script_tag(RUNTIME_JS))
+        },
+        (Page::Srcdoc, _, Some(rt)) => html! {
+            (HYPERFRAMES_ASSETS.stylesheet_tag(COMPOSITION_CSS))
+            script src=(rt.plain_url()) integrity=(rt.integrity()) crossorigin="anonymous" {}
+        },
+        (Page::SrcdocOpaque, Some(css), Some(rt)) => html! {
+            link rel="stylesheet" href=(css.url());
+            script src=(rt.plain_url()) {}
+        },
+        // The bundle always has both files (a test checks it).
+        _ => html! {},
     }
 }
 
@@ -391,6 +449,7 @@ fn clip_markup(clip: &AnyClip) -> Markup {
                     data-playback-start=[n.playback_start.map(seconds)]
                     data-playback-rate=[n.playback_rate.map(num)]
                     data-width=[n.size.map(|s| s.0)] data-height=[n.size.map(|s| s.1)]
+                    data-no-timeline[n.no_timeline]
                     data-variable-values=[values] {}
             }
         }
@@ -411,7 +470,7 @@ impl CompositionBuilder {
         self
     }
 
-    /// Says that a script registers a timeline (`window.__timelines[id]`).
+    /// Tells the runtime that a script registers a timeline (`window.__timelines[id]`).
     ///
     /// Without this, the root gets `data-no-timeline` and needs a duration.
     pub const fn with_timeline(mut self) -> Self {
@@ -453,9 +512,32 @@ impl CompositionBuilder {
 
     /// Checks the composition. Returns all errors that it finds.
     ///
+    /// The rules:
+    ///
+    /// - Ids match `[A-Za-z][A-Za-z0-9_-]*`, max 128 characters.
+    /// - The root id and the clip ids are unique.
+    /// - Width and height are in `1..=16384`.
+    /// - A composition without a timeline has a duration. A duration rounds to at least 1 ms.
+    /// - HTML and nested clips have a duration.
+    /// - `Start::after` names another clip in the same composition. No loops.
+    /// - Volume is in `0..=3.98`. Clip playback rate is in `0.1..=10`.
+    /// - URLs are relative or `http(s)`. Media URLs can also be `blob:` and media `data:`.
+    /// - Variables have unique ids, finite numbers and valid choice defaults.
+    /// - `bind_src` names a declared variable.
+    /// - A nested composition with relative starts plays only one time.
+    /// - HTML content has no element id that is a clip id.
+    ///
+    /// ```rust
+    /// use autumn_plugin_hyperframes::{Composition, CompositionError};
+    ///
+    /// let err = Composition::builder("12").size(0, 0).build().expect_err("bad");
+    /// assert_eq!(err.errors().len(), 3);
+    /// assert!(err.errors().contains(&CompositionError::InvalidId { id: "12".into() }));
+    /// ```
+    ///
     /// # Errors
     ///
-    /// Returns a [`BuildError`] when a rule S1 to S10 in `docs/plan.md` fails.
+    /// Returns a [`BuildError`] that lists every rule that fails.
     pub fn build(self) -> Result<Composition, BuildError> {
         let mut errors = Vec::new();
         self.check_root(&mut errors);
@@ -466,6 +548,8 @@ impl CompositionBuilder {
         }
         self.check_unique_ids(&mut errors);
         self.check_references(&mut errors);
+        self.check_repeated_nested(&mut errors);
+        self.check_content_ids(&mut errors);
         if !errors.is_empty() {
             return Err(BuildError(errors));
         }
@@ -506,7 +590,7 @@ impl CompositionBuilder {
             _ => {}
         }
         for url in self.stylesheets.iter().chain(&self.scripts) {
-            check_url(&self.id, url, errors);
+            check_url(&self.id, url, UrlUse::Document, errors);
         }
     }
 
@@ -563,6 +647,55 @@ impl CompositionBuilder {
                 errors.push(CompositionError::DuplicateId {
                     id: self.id.clone(),
                 });
+            }
+        }
+    }
+
+    /// S12: a nested composition with relative starts plays only one time.
+    ///
+    /// The runtime finds a reference with `getElementById`, so a second copy
+    /// would follow the clips of the first copy.
+    fn check_repeated_nested(&self, errors: &mut Vec<CompositionError>) {
+        let mut seen: HashMap<&str, (usize, bool)> = HashMap::new();
+        for clip in &self.clips {
+            if let AnyKind::Nested(n) = &clip.kind {
+                let entry = seen.entry(n.src.as_str()).or_insert((0, false));
+                entry.0 += 1;
+                entry.1 |= n.relative_starts;
+            }
+        }
+        let mut reported = HashSet::new();
+        for clip in &self.clips {
+            if let AnyKind::Nested(n) = &clip.kind
+                && let Some(&(count, relative)) = seen.get(n.src.as_str())
+                && count > 1
+                && relative
+                && reported.insert(n.src.as_str())
+            {
+                errors.push(CompositionError::RepeatedRelativeNested { src: n.src.clone() });
+            }
+        }
+    }
+
+    /// S13: HTML content has no element id that is a clip id or the root id.
+    ///
+    /// The runtime finds a reference with `getElementById` in document order,
+    /// so such an id could take the place of the clip.
+    fn check_content_ids(&self, errors: &mut Vec<CompositionError>) {
+        let ids: Vec<&str> = std::iter::once(self.id.as_str())
+            .chain(self.clips.iter().map(|c| c.id.as_str()))
+            .collect();
+        for clip in &self.clips {
+            if let AnyKind::Html(h) = &clip.kind {
+                let content = h.content.0.as_str();
+                for id in &ids {
+                    if content.contains(&format!(" id=\"{id}\"")) {
+                        errors.push(CompositionError::ContentIdClash {
+                            clip: clip.id.clone(),
+                            id: (*id).to_owned(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -644,8 +777,8 @@ fn check_id(id: &str, errors: &mut Vec<CompositionError>) {
     }
 }
 
-fn check_url(owner: &str, url: &str, errors: &mut Vec<CompositionError>) {
-    if !is_safe_url(url) {
+fn check_url(owner: &str, url: &str, use_: UrlUse, errors: &mut Vec<CompositionError>) {
+    if !is_safe_url(url, use_) {
         errors.push(CompositionError::UnsafeUrl {
             owner: owner.to_owned(),
             url: url.to_owned(),
@@ -709,21 +842,21 @@ fn check_clip(clip: &AnyClip, declared: &HashSet<&str>, errors: &mut Vec<Composi
     match &clip.kind {
         AnyKind::Html(_) => {}
         AnyKind::Image(i) => {
-            check_url(id, &i.src, errors);
+            check_url(id, &i.src, UrlUse::Media, errors);
             check_binding(id, i.bind_src.as_ref(), declared, errors);
         }
         AnyKind::Video(v) => {
-            check_url(id, &v.src, errors);
+            check_url(id, &v.src, UrlUse::Media, errors);
             check_media(id, &v.media, errors);
             check_binding(id, v.bind_src.as_ref(), declared, errors);
         }
         AnyKind::Audio(a) => {
-            check_url(id, &a.src, errors);
+            check_url(id, &a.src, UrlUse::Media, errors);
             check_media(id, &a.media, errors);
             check_binding(id, a.bind_src.as_ref(), declared, errors);
         }
         AnyKind::Nested(n) => {
-            check_url(id, &n.src, errors);
+            check_url(id, &n.src, UrlUse::Document, errors);
             check_rate(id, n.playback_rate, errors);
             if let Some(composition_id) = &n.composition_id {
                 check_id(composition_id, errors);

@@ -87,6 +87,8 @@ pub struct Nested {
     pub(crate) playback_rate: Option<f64>,
     pub(crate) size: Option<(u32, u32)>,
     pub(crate) values: BTreeMap<String, VariableValue>,
+    pub(crate) no_timeline: bool,
+    pub(crate) relative_starts: bool,
 }
 
 pub(crate) mod sealed {
@@ -272,6 +274,8 @@ impl<K: ClipKind> Clip<K> {
 
 impl Clip<Html> {
     /// An HTML block clip. It needs a duration.
+    ///
+    /// Do not give an element in `content` the id of a clip (rule S13).
     pub fn html(id: &str, content: Markup) -> Self {
         Self::with(id, Html { content })
     }
@@ -339,22 +343,51 @@ impl Clip<Nested> {
                 playback_rate: None,
                 size: None,
                 values: BTreeMap::new(),
+                no_timeline: false,
+                relative_starts: false,
             },
         )
     }
 
     /// A nested composition clip for `composition`, served from `src`.
+    ///
+    /// Serve `composition.template()` at `src`. The clip copies the
+    /// composition id, size and duration, and adds `data-no-timeline` when the
+    /// composition has no timeline. Use this in place of
+    /// [`Clip::composition`] when you have the `Composition`.
+    ///
+    /// ```rust
+    /// use std::time::Duration;
+    /// use autumn_plugin_hyperframes::{Clip, Composition};
+    ///
+    /// let card = Composition::builder("card").duration(Duration::from_secs(3)).build()?;
+    /// let host = Composition::builder("host")
+    ///     .duration(Duration::from_secs(3))
+    ///     .clip(Clip::nested("pro", "/compositions/card.html", &card).value("plan", "Pro"))
+    ///     .build()?;
+    /// assert_eq!(host.resolved_end("pro"), Some(Duration::from_secs(3)));
+    /// # Ok::<(), autumn_plugin_hyperframes::BuildError>(())
+    /// ```
     pub fn nested(id: &str, src: &str, composition: &crate::Composition) -> Self {
-        let _ = composition;
-        Self::composition(id, src)
+        let mut clip = Self::composition(id, src)
+            .composition_id(composition.id().as_str())
+            .size(composition.width(), composition.height());
+        clip.duration = composition.duration();
+        clip.kind.no_timeline = composition.is_timeline_free();
+        clip.kind.relative_starts = composition.has_relative_starts();
+        clip
     }
 
-    /// Adds `data-no-timeline` to the host.
-    pub const fn no_timeline(self) -> Self {
+    /// Adds `data-no-timeline` to the host: the nested composition registers
+    /// no timeline. [`Clip::nested`] sets this for you.
+    pub const fn no_timeline(mut self) -> Self {
+        self.kind.no_timeline = true;
         self
     }
 
     /// Sets the id of the nested composition. The default is the clip id.
+    ///
+    /// It must be the id inside the source file.
     pub fn composition_id(mut self, id: &str) -> Self {
         self.kind.composition_id = Some(id.to_owned());
         self

@@ -69,6 +69,18 @@ plays a composition in a sandboxed iframe, with video-like controls.
 | The vendored bytes change by accident. | Pin the `sha384` of each upstream file. A test checks it. CI compares with the npm tarball. |
 | The plugin forces features on the host app. | `PluginAssets::from_files`. No `embed-assets`. A CI step checks it. |
 
+Found in the multi-angle review, then fixed with a test first:
+
+| Way to fail | Prevention |
+|---|---|
+| A DOM marker (`data-hf-init`) goes into the htmx history snapshot. After Back, no player is set up. | `init.js` keeps set-up players in a `WeakSet`. |
+| With reduced motion, the player reads `autoplay` before `htmx:load` runs. | `.autoplay()` writes `data-hf-autoplay`. `init.js` adds `autoplay` only when motion is allowed. |
+| Text such as `__hyperframes =` makes the player skip the runtime. | Each `srcdoc` links the runtime by its plain URL. |
+| An opaque frame cannot pass CORS or SRI checks in production. | Opaque `srcdoc` tags have no `integrity` and no `crossorigin`. |
+| The runtime reads nested variable defaults only from `<html>`. | `template()` is a page; `<html>` has the declarations. |
+| A nested host with another id or no `data-no-timeline` makes a CLI render wait. | `Clip::nested` copies the id, size, duration and timeline flag. |
+| `data:image/svg+xml` or `data: text/html` passes a block list. | URLs use an allowlist for each use (S8). |
+
 ## 4. Six thinking hats
 
 - **White (facts):** `@hyperframes/player` and `@hyperframes/core` 0.8.140 are on npm,
@@ -150,14 +162,16 @@ them. (Verus is not available in this environment; property tests take its place
 | S1 | Each id matches `[A-Za-z][A-Za-z0-9_-]{0,127}`. |
 | S2 | The root id and all clip ids are unique. A nested composition id can repeat (the runtime gives each copy its own id), but it is not the root id. |
 | S3 | Width and height are in `1..=16384`. |
-| S4 | A timeline-free composition has a duration. Each set duration is more than zero. |
+| S4 | A composition without a timeline has a duration. Each set duration rounds to at least 1 ms. |
 | S5 | HTML and nested composition clips have a duration. |
 | S6 | Each `Start::after` reference names another clip in the same composition. The references make no cycle. |
 | S7 | Volume is finite and in `0..=3.98`. Playback rate is finite and in `0.1..=10`. |
-| S8 | Each URL is not empty and does not use `javascript:`, `vbscript:` or `data:text/html`. |
+| S8 | Each URL is on the allowlist for its use. Pages, nested files, stylesheets and scripts: relative or `http(s)`. Media: also `blob:` and `data:` images (not SVG), videos and audio. |
 | S9 | Variable ids follow S1 and are unique. An enum has options and its default is one of them. Numbers are finite. |
 | S10 | Each `bind_src` names a declared variable. |
 | S11 | `resolved_start` is `max(0, end(ref) + offset)` for a reference and the start time for an absolute start (the runtime rule). |
+| S12 | A nested composition with relative starts plays only one time. (The runtime finds a reference with `getElementById` in the whole page.) |
+| S13 | HTML content has no element id that is a clip id or the root id. |
 
 ## 8. Test plan
 

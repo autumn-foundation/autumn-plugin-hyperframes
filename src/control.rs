@@ -60,6 +60,20 @@ impl Control {
 }
 
 /// A `<button>` that controls a player.
+///
+/// `init.js` handles the click. The button is a native `<button>`, so it works
+/// with the keyboard.
+///
+/// ```rust
+/// use std::time::Duration;
+/// use autumn_plugin_hyperframes::{Control, PlayerControl};
+///
+/// let html = PlayerControl::new("intro", Control::Seek(Duration::from_millis(2500)))
+///     .label("Go to the logo")
+///     .render()
+///     .into_string();
+/// assert!(html.contains(r#"data-hf-seek="2.5""#));
+/// ```
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct PlayerControl {
