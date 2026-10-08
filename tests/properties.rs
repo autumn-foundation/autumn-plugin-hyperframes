@@ -9,7 +9,7 @@ use regex::Regex;
 
 const ID: &str = "[A-Za-z][A-Za-z0-9_-]{0,127}";
 
-fn ms(n: u64) -> Duration {
+const fn ms(n: u64) -> Duration {
     Duration::from_millis(n)
 }
 
@@ -29,7 +29,7 @@ proptest! {
             prop_assert!(result.is_ok());
         } else {
             let err = result.expect_err("fails");
-            let expected = CompositionError::InvalidId { id: id.clone() };
+            let expected = CompositionError::InvalidId { id };
             prop_assert!(err.errors().contains(&expected), "{:?}", err);
         }
     }
@@ -116,9 +116,11 @@ proptest! {
         let html = comp.fragment().into_string();
         let re = Regex::new(r#"data-duration="(\d+(?:\.\d{1,3})?)""#).expect("regex");
         let caps = re.captures(&html).expect("duration attribute");
-        let value: f64 = caps[1].parse().expect("number");
-        let expected = ((u128::from(nanos) + 500_000) / 1_000_000) as f64 / 1000.0;
-        prop_assert!((value - expected).abs() < 1e-9, "{} vs {}", value, expected);
+        // Read the text back as whole milliseconds.
+        let (whole, frac) = caps[1].split_once('.').unwrap_or((&caps[1], ""));
+        let read_ms = whole.parse::<u64>().expect("digits") * 1000
+            + format!("{frac:0<3}").parse::<u64>().expect("digits");
+        prop_assert_eq!(read_ms, (nanos + 500_000) / 1_000_000);
         prop_assert!(!caps[1].ends_with('0') || !caps[1].contains('.'));
     }
 }

@@ -4,6 +4,9 @@
 //! parses each case with `init.js`. Run `UPDATE_GOLDEN=1 cargo test --test golden`
 //! after an attribute change.
 
+// Test helpers outside #[test] functions may panic.
+#![allow(clippy::expect_used)]
+
 use std::fmt::Write as _;
 use std::time::Duration;
 
@@ -52,18 +55,19 @@ fn render_fixture() -> String {
             Some(3600.0),
         ),
     ];
+    let n = controls.len();
     for (i, (control, name, seconds)) in controls.into_iter().enumerate() {
         let html = PlayerControl::new("p", control).render().into_string();
         let control_attr = attr(&html, "data-hf-control");
         let seek_attr = attr(&html, "data-hf-seek");
         assert_eq!(control_attr.as_deref(), Some(name), "{html}");
-        let _ = write!(
+        let _ = writeln!(
             out,
-            "    {{ \"control\": {}, \"seek\": {}, \"expect\": {{ \"control\": \"{name}\", \"seek\": {} }} }}{}\n",
+            "    {{ \"control\": {}, \"seek\": {}, \"expect\": {{ \"control\": \"{name}\", \"seek\": {} }} }}{}",
             json_str(control_attr.as_deref()),
             json_str(seek_attr.as_deref()),
             seconds.map_or_else(|| "null".to_owned(), |s: f64| s.to_string()),
-            if i + 1 < controls_len() { "," } else { "" },
+            if i + 1 < n { "," } else { "" },
         );
     }
     out.push_str("  ],\n  \"players\": [\n");
@@ -90,9 +94,9 @@ fn render_fixture() -> String {
         let reduced_attr = attr(&html, "data-hf-reduced");
         assert_eq!(in_view_attr, in_view, "{html}");
         assert_eq!(reduced_attr.as_deref(), reduced, "{html}");
-        let _ = write!(
+        let _ = writeln!(
             out,
-            "    {{ \"inView\": {in_view_attr}, \"reduced\": {}, \"expect\": {{ \"inView\": {in_view}, \"animateWhenReduced\": {} }} }}{}\n",
+            "    {{ \"inView\": {in_view_attr}, \"reduced\": {}, \"expect\": {{ \"inView\": {in_view}, \"animateWhenReduced\": {} }} }}{}",
             json_str(reduced_attr.as_deref()),
             reduced == Some("animate"),
             if i + 1 < n { "," } else { "" },
@@ -103,10 +107,6 @@ fn render_fixture() -> String {
     out.push_str("    \"seeks\": [\"\", \"-1\", \"1e3\", \"0x10\", \"1.2345\", \"abc\", \" 1\", \"Infinity\"]\n");
     out.push_str("  }\n}\n");
     out
-}
-
-const fn controls_len() -> usize {
-    11
 }
 
 #[test]

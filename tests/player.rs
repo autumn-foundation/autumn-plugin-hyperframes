@@ -1,5 +1,8 @@
 //! Player and control markup (AC 8, 10).
 
+// Test helpers outside #[test] functions may panic.
+#![allow(clippy::expect_used)]
+
 use std::time::Duration;
 
 use autumn_plugin_hyperframes::{
@@ -231,7 +234,7 @@ fn control_names_round_trip() {
         Control::ToggleMute,
         Control::Seek(Duration::ZERO),
     ] {
-        assert!(!control.name().is_empty());
+        assert_ne!(control.name(), "");
     }
     assert_eq!(Control::Seek(Duration::ZERO).name(), "seek");
 }

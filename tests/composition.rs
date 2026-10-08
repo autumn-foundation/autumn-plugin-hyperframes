@@ -1,5 +1,8 @@
 //! Composition model: build checks (spec S1-S11) and HTML output.
 
+// Test helpers outside #[test] functions may panic.
+#![allow(clippy::expect_used)]
+
 use std::time::Duration;
 
 use autumn_plugin_hyperframes::{
@@ -688,7 +691,7 @@ fn text_and_urls_are_escaped() {
 #[test]
 fn times_round_to_milliseconds() {
     let comp = Composition::builder("c")
-        .duration(Duration::from_nanos(1_234_500_000))
+        .duration(Duration::from_micros(1_234_500))
         .clip(Clip::image("a", "/a.png").start(Start::at(Duration::from_micros(2_000_400))))
         .build()
         .expect("ok");
