@@ -43,31 +43,26 @@ impl Variable {
     }
 
     /// A text variable.
-    #[must_use]
     pub fn string(id: &str, default: &str) -> Self {
         Self::new(id, VariableKind::String(default.to_owned()))
     }
 
     /// A number variable. The default must be finite.
-    #[must_use]
     pub fn number(id: &str, default: f64) -> Self {
         Self::new(id, VariableKind::Number(default))
     }
 
     /// A color variable, for example `#6c5ce7`.
-    #[must_use]
     pub fn color(id: &str, default: &str) -> Self {
         Self::new(id, VariableKind::Color(default.to_owned()))
     }
 
     /// An on/off variable.
-    #[must_use]
     pub fn boolean(id: &str, default: bool) -> Self {
         Self::new(id, VariableKind::Boolean(default))
     }
 
     /// A choice from `options` (type `enum`). The default must be one of them.
-    #[must_use]
     pub fn choice(id: &str, options: &[&str], default: &str) -> Self {
         Self::new(
             id,
@@ -79,26 +74,22 @@ impl Variable {
     }
 
     /// A font family variable.
-    #[must_use]
     pub fn font(id: &str, default: &str) -> Self {
         Self::new(id, VariableKind::Font(default.to_owned()))
     }
 
     /// An image path variable.
-    #[must_use]
     pub fn image(id: &str, default: &str) -> Self {
         Self::new(id, VariableKind::Image(default.to_owned()))
     }
 
     /// Sets the label that Studio and agents show. The default label is the id.
-    #[must_use]
     pub fn label(mut self, label: &str) -> Self {
         self.label = Some(label.to_owned());
         self
     }
 
     /// Sets a description of what the value means.
-    #[must_use]
     pub fn description(mut self, description: &str) -> Self {
         self.description = Some(description.to_owned());
         self

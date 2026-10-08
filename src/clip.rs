@@ -235,28 +235,24 @@ impl<K: ClipKind> Clip<K> {
     }
 
     /// Sets when the clip starts. The default is the composition start.
-    #[must_use]
     pub fn start(mut self, start: Start) -> Self {
         self.start = start;
         self
     }
 
     /// Sets how long the clip shows.
-    #[must_use]
     pub const fn duration(mut self, duration: Duration) -> Self {
         self.duration = Some(duration);
         self
     }
 
     /// Sets the Studio timeline lane. It does not change paint order.
-    #[must_use]
     pub const fn track(mut self, track: u32) -> Self {
         self.track = Some(track);
         self
     }
 
     /// Adds a CSS class.
-    #[must_use]
     pub fn class(mut self, class: &str) -> Self {
         self.classes.push(class.to_owned());
         self
@@ -276,7 +272,6 @@ impl<K: ClipKind> Clip<K> {
 
 impl Clip<Html> {
     /// An HTML block clip. It needs a duration.
-    #[must_use]
     pub fn html(id: &str, content: Markup) -> Self {
         Self::with(id, Html { content })
     }
@@ -284,7 +279,6 @@ impl Clip<Html> {
 
 impl Clip<Image> {
     /// An image clip. Without a duration it shows for 3 s.
-    #[must_use]
     pub fn image(id: &str, src: &str) -> Self {
         Self::with(
             id,
@@ -297,7 +291,6 @@ impl Clip<Image> {
     }
 
     /// Sets the alternative text. The default is empty (decorative).
-    #[must_use]
     pub fn alt(mut self, alt: &str) -> Self {
         alt.clone_into(&mut self.kind.alt);
         self
@@ -306,7 +299,6 @@ impl Clip<Image> {
 
 impl Clip<Video> {
     /// A video clip. Without a duration it plays to the end of the source.
-    #[must_use]
     pub fn video(id: &str, src: &str, audio: VideoAudio) -> Self {
         Self::with(
             id,
@@ -322,7 +314,6 @@ impl Clip<Video> {
 
 impl Clip<Audio> {
     /// An audio clip. Without a duration it plays to the end of the source.
-    #[must_use]
     pub fn audio(id: &str, src: &str) -> Self {
         Self::with(
             id,
@@ -338,7 +329,6 @@ impl Clip<Audio> {
 impl Clip<Nested> {
     /// A nested composition clip. `src` is the URL of a
     /// [`Composition::template`](crate::Composition::template) file. It needs a duration.
-    #[must_use]
     pub fn composition(id: &str, src: &str) -> Self {
         Self::with(
             id,
@@ -354,28 +344,24 @@ impl Clip<Nested> {
     }
 
     /// Sets the id of the nested composition. The default is the clip id.
-    #[must_use]
     pub fn composition_id(mut self, id: &str) -> Self {
         self.kind.composition_id = Some(id.to_owned());
         self
     }
 
     /// Sets the first moment of the nested timeline to show.
-    #[must_use]
     pub const fn playback_start(mut self, time: Duration) -> Self {
         self.kind.playback_start = Some(time);
         self
     }
 
     /// Sets the size of the nested composition in pixels.
-    #[must_use]
     pub const fn size(mut self, width: u32, height: u32) -> Self {
         self.kind.size = Some((width, height));
         self
     }
 
     /// Sets a variable value for this copy of the nested composition.
-    #[must_use]
     pub fn value(mut self, name: &str, value: impl Into<VariableValue>) -> Self {
         self.kind.values.insert(name.to_owned(), value.into());
         self
@@ -384,28 +370,24 @@ impl Clip<Nested> {
 
 impl<K: sealed::HasMedia> Clip<K> {
     /// Sets the time in the source file where the clip starts (`data-media-start`).
-    #[must_use]
     pub fn media_start(mut self, time: Duration) -> Self {
         self.kind.media_mut().media_start = Some(time);
         self
     }
 
     /// Sets the gain. `1.0` is 0 dB. The range is `0.0..=3.98` (+12 dB).
-    #[must_use]
     pub fn volume(mut self, volume: f64) -> Self {
         self.kind.media_mut().volume = Some(volume);
         self
     }
 
     /// Fades the sound in over the first `time` of the clip.
-    #[must_use]
     pub fn fade_in(mut self, time: Duration) -> Self {
         self.kind.media_mut().fade_in = Some(time);
         self
     }
 
     /// Fades the sound out over the last `time` of the clip.
-    #[must_use]
     pub fn fade_out(mut self, time: Duration) -> Self {
         self.kind.media_mut().fade_out = Some(time);
         self
@@ -414,7 +396,6 @@ impl<K: sealed::HasMedia> Clip<K> {
 
 impl<K: sealed::HasRate> Clip<K> {
     /// Sets the playback speed. The range is `0.1..=10`.
-    #[must_use]
     pub fn playback_rate(mut self, rate: f64) -> Self {
         *self.kind.rate_mut() = Some(rate);
         self
@@ -423,7 +404,6 @@ impl<K: sealed::HasRate> Clip<K> {
 
 impl<K: sealed::HasSrc> Clip<K> {
     /// Lets the variable `variable` replace the `src` (`data-var-src`).
-    #[must_use]
     pub fn bind_src(mut self, variable: &str) -> Self {
         *self.kind.bind_mut() = Some(variable.to_owned());
         self
