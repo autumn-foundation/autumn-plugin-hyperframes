@@ -184,7 +184,26 @@ mod tests {
     #[test]
     fn plugin_files_are_not_empty() {
         assert!(text(HOST_CSS).contains("hyperframes-player"));
+        let init = text(INIT_JS);
+        for hook in [
+            "htmx:load",
+            "htmx:beforeCleanupElement",
+            "prefers-reduced-motion",
+            "IntersectionObserver",
+            "window.AutumnHyperframes",
+        ] {
+            assert!(init.contains(hook), "init.js has {hook}");
+        }
         assert!(text(COMPOSITION_CSS).contains(".clip"));
+    }
+
+    #[test]
+    fn init_js_seek_grammar_matches_rust_seconds() {
+        // `time::seconds` writes at most three decimals and no exponent.
+        assert!(
+            text(INIT_JS).contains(r"var RE_SEEK = /^\d+(?:\.\d{1,3})?$/;"),
+            "init.js RE_SEEK must match the Rust time format"
+        );
     }
 
     #[test]

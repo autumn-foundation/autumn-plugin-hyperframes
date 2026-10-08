@@ -1,1 +1,25 @@
-{}
+{
+  "controls": [
+    { "control": "play", "seek": null, "expect": { "control": "play", "seek": null } },
+    { "control": "pause", "seek": null, "expect": { "control": "pause", "seek": null } },
+    { "control": "toggle", "seek": null, "expect": { "control": "toggle", "seek": null } },
+    { "control": "restart", "seek": null, "expect": { "control": "restart", "seek": null } },
+    { "control": "mute", "seek": null, "expect": { "control": "mute", "seek": null } },
+    { "control": "unmute", "seek": null, "expect": { "control": "unmute", "seek": null } },
+    { "control": "toggle-mute", "seek": null, "expect": { "control": "toggle-mute", "seek": null } },
+    { "control": "seek", "seek": "0", "expect": { "control": "seek", "seek": 0 } },
+    { "control": "seek", "seek": "2.5", "expect": { "control": "seek", "seek": 2.5 } },
+    { "control": "seek", "seek": "1.234", "expect": { "control": "seek", "seek": 1.234 } },
+    { "control": "seek", "seek": "3600", "expect": { "control": "seek", "seek": 3600 } }
+  ],
+  "players": [
+    { "inView": false, "reduced": null, "expect": { "inView": false, "animateWhenReduced": false } },
+    { "inView": true, "reduced": null, "expect": { "inView": true, "animateWhenReduced": false } },
+    { "inView": true, "reduced": "animate", "expect": { "inView": true, "animateWhenReduced": true } },
+    { "inView": false, "reduced": null, "expect": { "inView": false, "animateWhenReduced": false } }
+  ],
+  "invalid": {
+    "controls": ["", "PLAY", "stop", "seek ", "toggle_mute"],
+    "seeks": ["", "-1", "1e3", "0x10", "1.2345", "abc", " 1", "Infinity"]
+  }
+}

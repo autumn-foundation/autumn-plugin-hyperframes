@@ -10,7 +10,10 @@ use std::time::Duration;
 use autumn_plugin_hyperframes::{Control, Player, PlayerControl, ReducedMotion};
 use regex::Regex;
 
-const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/attributes.json");
+const FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/attributes.json"
+);
 
 fn attr(html: &str, name: &str) -> Option<String> {
     let re = Regex::new(&format!(r#" {name}(?:="([^"]*)")?[ >]"#)).expect("regex");
@@ -33,9 +36,21 @@ fn render_fixture() -> String {
         (Control::Unmute, "unmute", None),
         (Control::ToggleMute, "toggle-mute", None),
         (Control::Seek(Duration::ZERO), "seek", Some(0.0)),
-        (Control::Seek(Duration::from_millis(2500)), "seek", Some(2.5)),
-        (Control::Seek(Duration::from_millis(1234)), "seek", Some(1.234)),
-        (Control::Seek(Duration::from_secs(3600)), "seek", Some(3600.0)),
+        (
+            Control::Seek(Duration::from_millis(2500)),
+            "seek",
+            Some(2.5),
+        ),
+        (
+            Control::Seek(Duration::from_millis(1234)),
+            "seek",
+            Some(1.234),
+        ),
+        (
+            Control::Seek(Duration::from_secs(3600)),
+            "seek",
+            Some(3600.0),
+        ),
     ];
     for (i, (control, name, seconds)) in controls.into_iter().enumerate() {
         let html = PlayerControl::new("p", control).render().into_string();
@@ -56,11 +71,17 @@ fn render_fixture() -> String {
         (Player::src("/c"), false, None),
         (Player::src("/c").in_view(), true, None),
         (
-            Player::src("/c").in_view().reduced_motion(ReducedMotion::Animate),
+            Player::src("/c")
+                .in_view()
+                .reduced_motion(ReducedMotion::Animate),
             true,
             Some("animate"),
         ),
-        (Player::src("/c").reduced_motion(ReducedMotion::Skip), false, None),
+        (
+            Player::src("/c").reduced_motion(ReducedMotion::Skip),
+            false,
+            None,
+        ),
     ];
     let n = players.len();
     for (i, (player, in_view, reduced)) in players.into_iter().enumerate() {
@@ -95,5 +116,8 @@ fn fixture_matches_rust_output() {
         std::fs::write(FIXTURE, &rendered).expect("write fixture");
     }
     let stored = std::fs::read_to_string(FIXTURE).expect("fixture exists");
-    assert_eq!(stored, rendered, "run UPDATE_GOLDEN=1 cargo test --test golden");
+    assert_eq!(
+        stored, rendered,
+        "run UPDATE_GOLDEN=1 cargo test --test golden"
+    );
 }

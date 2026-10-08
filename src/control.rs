@@ -2,7 +2,9 @@
 
 use std::time::Duration;
 
-use autumn_web::Markup;
+use autumn_web::{Markup, html};
+
+use crate::time::seconds;
 
 /// What a [`PlayerControl`] button does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +31,30 @@ impl Control {
     /// The `data-hf-control` value.
     #[must_use]
     pub const fn name(self) -> &'static str {
-        ""
+        match self {
+            Self::Play => "play",
+            Self::Pause => "pause",
+            Self::Toggle => "toggle",
+            Self::Restart => "restart",
+            Self::Mute => "mute",
+            Self::Unmute => "unmute",
+            Self::ToggleMute => "toggle-mute",
+            Self::Seek(_) => "seek",
+        }
+    }
+
+    /// The default button text.
+    fn default_label(self) -> String {
+        match self {
+            Self::Play => "Play".to_owned(),
+            Self::Pause => "Pause".to_owned(),
+            Self::Toggle => "Play or pause".to_owned(),
+            Self::Restart => "Restart".to_owned(),
+            Self::Mute => "Mute".to_owned(),
+            Self::Unmute => "Unmute".to_owned(),
+            Self::ToggleMute => "Mute or unmute".to_owned(),
+            Self::Seek(time) => format!("Go to {} s", seconds(time)),
+        }
     }
 }
 
@@ -69,7 +94,23 @@ impl PlayerControl {
     /// Renders the button.
     #[must_use]
     pub fn render(&self) -> Markup {
-        Markup::default()
+        let class = (!self.classes.is_empty()).then(|| self.classes.join(" "));
+        let seek = match self.control {
+            Control::Seek(time) => Some(seconds(time)),
+            _ => None,
+        };
+        let label = self
+            .label
+            .clone()
+            .unwrap_or_else(|| self.control.default_label());
+        html! {
+            button type="button" class=[class]
+                data-hf-control=(self.control.name())
+                data-hf-target=(self.target) aria-controls=(self.target)
+                data-hf-seek=[seek] {
+                (label)
+            }
+        }
     }
 }
 

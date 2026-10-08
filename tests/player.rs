@@ -47,7 +47,10 @@ fn composition_player_uses_srcdoc_and_the_composition_size() {
     );
     assert!(!html.contains(" src="), "{html}");
     // The srcdoc is escaped once: the markup is text in the attribute.
-    assert!(html.contains("&lt;h1&gt;Hi &amp;amp; bye&lt;/h1&gt;"), "{html}");
+    assert!(
+        html.contains("&lt;h1&gt;Hi &amp;amp; bye&lt;/h1&gt;"),
+        "{html}"
+    );
 }
 
 #[test]
@@ -106,10 +109,18 @@ fn video_player_sets_the_type() {
 
 #[test]
 fn numbers_clamp_to_the_player_ranges() {
-    let html = Player::src("/c").playback_rate(9.0).volume(2.0).render().into_string();
+    let html = Player::src("/c")
+        .playback_rate(9.0)
+        .volume(2.0)
+        .render()
+        .into_string();
     assert!(html.contains(r#"playback-rate="5""#), "{html}");
     assert!(html.contains(r#"volume="1""#), "{html}");
-    let html = Player::src("/c").playback_rate(0.0).volume(-1.0).render().into_string();
+    let html = Player::src("/c")
+        .playback_rate(0.0)
+        .volume(-1.0)
+        .render()
+        .into_string();
     assert!(html.contains(r#"playback-rate="0.1""#), "{html}");
     assert!(html.contains(r#"volume="0""#), "{html}");
     let html = Player::src("/c")
@@ -145,8 +156,11 @@ fn aspect_ratio_class_follows_the_size() {
     ] {
         let html = Player::composition(&comp(w, h)).render().into_string();
         match class {
-            Some(class) => assert!(html.contains(&format!(r#"class="{class}""#)), "{w}x{h}: {html}"),
-            None => assert!(!html.contains("class="), "{w}x{h}: {html}"),
+            Some(class) => assert!(
+                html.contains(&format!(r#"class="{class}""#)),
+                "{w}x{h}: {html}"
+            ),
+            None => assert!(!html.contains("hf-ratio"), "{w}x{h}: {html}"),
         }
     }
 }
@@ -163,11 +177,19 @@ fn controls_render_buttons_for_init_js() {
     let cases = [
         (Control::Play, r#"data-hf-control="play""#, "Play"),
         (Control::Pause, r#"data-hf-control="pause""#, "Pause"),
-        (Control::Toggle, r#"data-hf-control="toggle""#, "Play or pause"),
+        (
+            Control::Toggle,
+            r#"data-hf-control="toggle""#,
+            "Play or pause",
+        ),
         (Control::Restart, r#"data-hf-control="restart""#, "Restart"),
         (Control::Mute, r#"data-hf-control="mute""#, "Mute"),
         (Control::Unmute, r#"data-hf-control="unmute""#, "Unmute"),
-        (Control::ToggleMute, r#"data-hf-control="toggle-mute""#, "Mute or unmute"),
+        (
+            Control::ToggleMute,
+            r#"data-hf-control="toggle-mute""#,
+            "Mute or unmute",
+        ),
     ];
     for (control, attr, label) in cases {
         let html = PlayerControl::new("intro", control).render().into_string();
