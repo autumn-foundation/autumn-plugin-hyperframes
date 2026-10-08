@@ -76,8 +76,9 @@ plays a composition in a sandboxed iframe, with video-like controls.
   The default Autumn CSP is `script-src 'self'`, `style-src 'self' 'unsafe-inline'`,
   `frame-ancestors 'none'`, plus `X-Frame-Options: DENY`.
   The player uses `adoptedStyleSheets`, so its own styles do not need `unsafe-inline`.
-  The runtime adds `<style>` elements, so compositions need `style-src 'unsafe-inline'`
-  (the Autumn default).
+  The runtime adds `<style>` elements, so compositions want `style-src 'unsafe-inline'`
+  (the Autumn default). The runtime sizes the root through CSSOM, so the root needs no
+  `style` attribute.
 - **Red (feelings):** Users want "write Rust, see video". Setup must be one plugin
   line and one script call. Errors must name the clip.
 - **Black (risks):** The runtime is large. It loads only inside compositions, not on

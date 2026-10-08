@@ -480,7 +480,7 @@ fn fragment_has_the_root_contract() {
     let html = intro().fragment().into_string();
     assert!(
         html.starts_with(
-            r#"<div id="intro" class="hf-root" data-composition-id="intro" data-start="0" data-duration="6" data-width="1280" data-height="720" data-no-timeline style="width:1280px;height:720px">"#
+            r#"<div id="intro" class="hf-root" data-composition-id="intro" data-start="0" data-duration="6" data-width="1280" data-height="720" data-no-timeline>"#
         ),
         "{html}"
     );

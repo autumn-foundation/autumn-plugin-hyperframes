@@ -7,7 +7,7 @@ body {
   overflow: hidden;
 }
 
-/* The composition root. `Composition` sets its pixel size. */
+/* The composition root. The runtime sets its pixel size from data-width and data-height. */
 .hf-root {
   position: relative;
   overflow: hidden;

@@ -254,7 +254,6 @@ impl Composition {
                 data-duration=[self.duration.map(seconds)]
                 data-width=(self.width) data-height=(self.height)
                 data-no-timeline[!self.timeline]
-                style=(format!("width:{}px;height:{}px", self.width, self.height))
                 data-composition-variables=[variables] {
                 @for clip in &self.clips {
                     (clip_markup(clip))
