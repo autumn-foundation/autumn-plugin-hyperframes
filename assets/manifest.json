@@ -1,0 +1,26 @@
+{
+  "files": {
+    "hyperframe.runtime.iife.js": {
+      "bytes": 506955,
+      "format": "IIFE (sets window.__hyperframes)",
+      "integrity": "sha384-UCnstVlWMl9wteIvcOzh30jSJFGbRklSCBsCo0OcM21ffq2lBFOWkUeiH/la0l/L",
+      "package": "@hyperframes/core",
+      "source": "https://cdn.jsdelivr.net/npm/@hyperframes/core@0.8.140/dist/hyperframe.runtime.iife.js",
+      "upstream_path": "/dist/hyperframe.runtime.iife.js"
+    },
+    "hyperframes-player.global.js": {
+      "bytes": 102855,
+      "format": "IIFE (defines <hyperframes-player>)",
+      "integrity": "sha384-wYfdLwjuZ+Vt5lRqB1bMMSjwF9iOQLjbZtz6D+Zql2IYDuxnxc80aKnq/4xnRxrA",
+      "package": "@hyperframes/player",
+      "source": "https://cdn.jsdelivr.net/npm/@hyperframes/player@0.8.140/dist/hyperframes-player.global.js",
+      "upstream_path": "/dist/hyperframes-player.global.js"
+    }
+  },
+  "homepage": "https://hyperframes.heygen.com",
+  "library": "hyperframes",
+  "license": "Apache-2.0",
+  "notes": "Both files are the unchanged upstream npm builds. Their integrity values here (and the pins in src/assets.rs) record the exact upstream bytes. init.js, hyperframes.css and composition.css are plugin files; autumn-web computes their URLs and SRI hashes. This file is provenance only. The plugin does not serve it.",
+  "pinned": "latest 0.8.x as of 2026-10-08",
+  "version": "0.8.140"
+}
