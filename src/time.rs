@@ -87,25 +87,23 @@ impl Start {
 }
 
 impl Offset {
-    /// Adds `time` (`later`) or subtracts it.
+    /// Adds `time` (`later`) or subtracts it. The sign flips when it passes zero.
     fn shift(self, time: Duration, later: bool) -> Self {
-        match (self, later) {
-            (Self::Plus(d), true) => Self::Plus(d.saturating_add(time)),
-            (Self::Minus(d), false) => Self::Minus(d.saturating_add(time)),
-            (Self::Plus(d), false) | (Self::Minus(d), true) => {
-                let flipped = matches!(self, Self::Plus(_));
-                if time > d {
-                    if flipped {
-                        Self::Minus(time - d)
-                    } else {
-                        Self::Plus(time - d)
-                    }
-                } else if flipped {
-                    Self::Plus(d - time)
-                } else {
-                    Self::Minus(d - time)
-                }
-            }
+        let nanos = |d: Duration| i128::try_from(d.as_nanos()).unwrap_or(i128::MAX);
+        let current = match self {
+            Self::Plus(d) => nanos(d),
+            Self::Minus(d) => -nanos(d),
+        };
+        let next = if later {
+            current.saturating_add(nanos(time))
+        } else {
+            current.saturating_sub(nanos(time))
+        };
+        let size = Duration::from_nanos(u64::try_from(next.unsigned_abs()).unwrap_or(u64::MAX));
+        if next < 0 {
+            Self::Minus(size)
+        } else {
+            Self::Plus(size)
         }
     }
 

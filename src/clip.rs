@@ -46,16 +46,6 @@ pub struct Clip<K> {
     pub(crate) kind: K,
 }
 
-/// Media options for video and audio clips.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(crate) struct Media {
-    pub(crate) media_start: Option<Duration>,
-    pub(crate) playback_rate: Option<f64>,
-    pub(crate) volume: Option<f64>,
-    pub(crate) fade_in: Option<Duration>,
-    pub(crate) fade_out: Option<Duration>,
-}
-
 /// Clip kind: an HTML block.
 #[derive(Debug, Clone)]
 pub struct Html {
@@ -75,7 +65,7 @@ pub struct Image {
 pub struct Video {
     pub(crate) src: String,
     pub(crate) audio: VideoAudio,
-    pub(crate) media: Media,
+    pub(crate) media: sealed::MediaOptions,
     pub(crate) bind_src: Option<String>,
 }
 
@@ -83,7 +73,7 @@ pub struct Video {
 #[derive(Debug, Clone)]
 pub struct Audio {
     pub(crate) src: String,
-    pub(crate) media: Media,
+    pub(crate) media: sealed::MediaOptions,
     pub(crate) bind_src: Option<String>,
 }
 
@@ -99,7 +89,19 @@ pub struct Nested {
 }
 
 pub(crate) mod sealed {
-    use super::{Audio, Html, Image, Media, Nested, Video};
+    use std::time::Duration;
+
+    use super::{Audio, Html, Image, Nested, Video};
+
+    /// Media options for video and audio clips.
+    #[derive(Debug, Clone, Default, PartialEq)]
+    pub struct MediaOptions {
+        pub media_start: Option<Duration>,
+        pub playback_rate: Option<f64>,
+        pub volume: Option<f64>,
+        pub fade_in: Option<Duration>,
+        pub fade_out: Option<Duration>,
+    }
 
     /// A clip kind with its data erased.
     #[derive(Debug, Clone)]
@@ -118,7 +120,7 @@ pub(crate) mod sealed {
 
     /// Kinds with media options.
     pub trait HasMedia: Sealed {
-        fn media_mut(&mut self) -> &mut Media;
+        fn media_mut(&mut self) -> &mut MediaOptions;
     }
 
     /// Kinds with a playback rate.
@@ -158,12 +160,12 @@ pub(crate) mod sealed {
     }
 
     impl HasMedia for Video {
-        fn media_mut(&mut self) -> &mut Media {
+        fn media_mut(&mut self) -> &mut MediaOptions {
             &mut self.media
         }
     }
     impl HasMedia for Audio {
-        fn media_mut(&mut self) -> &mut Media {
+        fn media_mut(&mut self) -> &mut MediaOptions {
             &mut self.media
         }
     }
@@ -310,7 +312,7 @@ impl Clip<Video> {
             Video {
                 src: src.to_owned(),
                 audio,
-                media: Media::default(),
+                media: sealed::MediaOptions::default(),
                 bind_src: None,
             },
         )
@@ -325,7 +327,7 @@ impl Clip<Audio> {
             id,
             Audio {
                 src: src.to_owned(),
-                media: Media::default(),
+                media: sealed::MediaOptions::default(),
                 bind_src: None,
             },
         )

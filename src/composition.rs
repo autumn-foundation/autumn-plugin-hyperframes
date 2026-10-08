@@ -7,11 +7,11 @@ use autumn_web::{Markup, html};
 use serde_json::Value;
 
 use crate::assets::{COMPOSITION_CSS, HYPERFRAMES_ASSETS, RUNTIME_JS};
-use crate::clip::sealed::AnyKind;
-use crate::clip::{AnyClip, Clip, ClipKind, Media, VideoAudio};
+use crate::clip::sealed::{AnyKind, MediaOptions};
+use crate::clip::{AnyClip, Clip, ClipKind, VideoAudio};
 use crate::error::{BuildError, CompositionError};
 use crate::id::{Id, is_valid_id};
-use crate::time::{Start, format_millis, millis, seconds, start_attr};
+use crate::time::{Start, millis, seconds, start_attr};
 use crate::url::is_safe_url;
 use crate::variable::{Variable, VariableKind, VariableValue};
 
@@ -650,7 +650,7 @@ fn check_url(owner: &str, url: &str, errors: &mut Vec<CompositionError>) {
     }
 }
 
-fn check_media(id: &str, media: &Media, errors: &mut Vec<CompositionError>) {
+fn check_media(id: &str, media: &MediaOptions, errors: &mut Vec<CompositionError>) {
     if let Some(volume) = media.volume
         && !VOLUME.contains(&volume)
     {
@@ -692,17 +692,9 @@ fn check_binding(
 fn check_clip(clip: &AnyClip, declared: &HashSet<&str>, errors: &mut Vec<CompositionError>) {
     let id = clip.id.as_str();
     check_id(id, errors);
-    if let Start::After {
-        clip: reference, ..
-    } = &clip.start
-        && !is_valid_id(reference)
-        && reference != id
-    {
-        check_id(reference, errors);
-    }
     match clip.duration {
         Some(d) if millis(d) == 0 => {
-            errors.push(CompositionError::ZeroDuration { id: id.to_owned() })
+            errors.push(CompositionError::ZeroDuration { id: id.to_owned() });
         }
         None if matches!(clip.kind, AnyKind::Html(_) | AnyKind::Nested(_)) => {
             errors.push(CompositionError::ClipNeedsDuration {
@@ -817,10 +809,5 @@ mod tests {
             class_list(&["a".into(), "b".into()], true).as_deref(),
             Some("clip a b")
         );
-    }
-
-    #[test]
-    fn format_millis_is_reexported_for_the_player() {
-        assert_eq!(format_millis(1500), "1.5");
     }
 }
