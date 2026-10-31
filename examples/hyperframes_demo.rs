@@ -48,18 +48,20 @@ const fn ms(n: u64) -> Duration {
 
 #[autumn_web::main]
 async fn main() {
-    autumn_web::app()
-        .plugin(HyperframesPlugin::new())
-        .embedded_static(&STATIC)
-        .routes(autumn_web::routes![
-            index,
-            src_mode,
-            intro_page,
-            pricing_template,
-            card
-        ])
-        .run()
-        .await;
+    Box::pin(
+        autumn_web::app()
+            .plugin(HyperframesPlugin::new())
+            .embedded_static(&STATIC)
+            .routes(autumn_web::routes![
+                index,
+                src_mode,
+                intro_page,
+                pricing_template,
+                card
+            ])
+            .run(),
+    )
+    .await;
 }
 
 /// The intro composition: a title, a tagline, a logo and a closing card.

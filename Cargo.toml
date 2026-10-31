@@ -15,7 +15,7 @@ exclude = [".github/", "docs/", "tests/e2e/", "tests/js/", "CLAUDE.md", "clippy.
 [dependencies]
 # No default features. The host app selects the Autumn features.
 # `maud` is on because the plugin ships Maud helpers.
-autumn-web = { version = "0.8", default-features = false, features = ["maud"] }
+autumn-web = { version = "0.9", default-features = false, features = ["maud"] }
 # The `html!` macro expands to `maud::` paths, so the crate must resolve here.
 maud = "0.27"
 # Writes the variable JSON attributes.
@@ -24,7 +24,7 @@ thiserror = "2"
 
 [dev-dependencies]
 # `htmx` and `embed-assets` are for the demo example only.
-autumn-web = { version = "0.8", default-features = false, features = ["maud", "embed-assets", "htmx"] }
+autumn-web = { version = "0.9", default-features = false, features = ["maud", "embed-assets", "htmx"] }
 base64 = "0.22"
 proptest = "1"
 regex = "1"
