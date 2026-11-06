@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(seconds(Duration::from_millis(5)), "0.005");
         assert_eq!(seconds(Duration::from_micros(1_999_500)), "2");
         assert_eq!(seconds(Duration::from_micros(400)), "0");
-        assert_eq!(seconds(Duration::from_secs(86_400)), "86400");
+        assert_eq!(seconds(Duration::from_hours(24)), "86400");
     }
 
     #[test]
