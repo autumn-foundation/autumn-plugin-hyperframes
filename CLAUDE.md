@@ -19,6 +19,8 @@ Autumn plugin for HyperFrames. Rust crate plus one JS file (`assets/init.js`).
 
 ## Rules
 
+- README Rust snippets are doctests. Make them compile; use `no_run`, not `ignore`.
+  `tests/doc_snippets.rs` checks the TOML snippets and the version pins in the docs.
 - Write tests first (red, green, refactor).
 - A new build rule needs a row in `docs/plan.md` section 7 and a test.
 - A new `data-hf-*` attribute needs a parser in `init.js`, a golden case and a README row.
