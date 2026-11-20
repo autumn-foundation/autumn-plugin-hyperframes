@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Support `autumn-web` 0.10. The plugin now needs `autumn-web` 0.10 and
+- Support `autumn-web` 0.11. The plugin now needs `autumn-web` 0.11 and
   Rust 1.97.
 
 ## 0.1.0 (2026-10-08)

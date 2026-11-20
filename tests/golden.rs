@@ -49,11 +49,7 @@ fn render_fixture() -> String {
             "seek",
             Some(1.234),
         ),
-        (
-            Control::Seek(Duration::from_secs(3600)),
-            "seek",
-            Some(3600.0),
-        ),
+        (Control::Seek(Duration::from_hours(1)), "seek", Some(3600.0)),
     ];
     let n = controls.len();
     for (i, (control, name, seconds)) in controls.into_iter().enumerate() {
